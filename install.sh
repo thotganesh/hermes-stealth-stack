@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Hermes Stealth Stack - installer (v1.0.3)
+# Hermes Stealth Stack - installer
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")"

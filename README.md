@@ -131,6 +131,38 @@ Once a tab is created with a `tor+` or `i2p+` prefix (or with a `.onion`/`.i2p` 
 
 This is intentional. It prevents an anonymous session from accidentally leaking through the host IP if you forget the prefix on a follow-up navigation.
 
+## Tests
+
+All tests run locally and verify real behavior, not just exit codes.
+
+### Privacy
+
+    ./test-privacy.sh
+
+Three checks on every Camofox backend:
+
+1. `typeof RTCPeerConnection === "undefined"` -> WebRTC disabled
+2. `IsTor: true` on `camofox-tor` -> Tor exit confirmed
+3. No UDP/DNS traffic escapes the proxy (35s tcpdump capture on `camofox-tor`)
+
+### I2P fail-safe
+
+    ./test-i2p.sh
+
+Stops `i2p-proxy` briefly and navigates a Tor-bound tab. Expects an error, not a silent leak through the host IP. Restarts `i2p-proxy` automatically.
+
+### I2P DNS/UDP leak
+
+    ./test-privacy-i2p.sh
+
+Captures 60s of traffic on `camofox-i2p` (HTTP proxy, different from Tor). Only outbound connections count.
+
+### Routing
+
+    ./test-routing.sh
+
+Verifies that `tor+`, `i2p+`, `.onion` and `.i2p` URLs are routed to the correct backend, and that per-tab routing stays consistent after navigation.
+
 ## Security model
 
 This stack assumes the Docker network (default: `ai-net`) is trusted.
