@@ -187,3 +187,17 @@ MIT - see LICENSE.
 - Camoufox (https://camoufox.com/) by daijiro
 - camofox-browser (https://github.com/jo-inc/camofox-browser) by jo-inc
 - Hermes Agent (https://github.com/NousResearch/hermes-agent) by Nous Research
+
+## Security notes (v1.0.6)
+
+- The router is **fail-closed**: only `POST/GET /tabs`, `/tabs/{id}/...` and `/sessions/{userId}/...` are forwarded.
+  Legacy/global endpoints (`/navigate`, `/tabs/open`, `/start`, `/act`, ...) return 404.
+- A tab keeps its backend for life. Navigating a `vps` tab to `tor+...`, `*.onion` or `*.i2p` returns `409 backend_mismatch`
+  instead of silently using the host IP.
+- URLs are validated (http/https only; no loopback, private or internal hosts) in the router, `solverr_fetch` and `browser-tor`.
+- `browser_tor` talks to the separate `browser-tor` container (see `openwebui-tor-i2p-scraper`). It reports
+  `circuit_renewed` in every response; set `TOR_REQUIRE_NEWNYM=1` there to fail instead of reusing a circuit.
+- NEWNYM is global for the shared `tor-proxy`: it can change the exit of an ongoing `camofox-tor` session.
+  Use a single Tor path per task if you need a stable identity.
+- Page content returned to the agent is untrusted input (prompt injection). This stack does not make you anonymous against
+  fingerprinting or a global adversary.

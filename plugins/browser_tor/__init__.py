@@ -1,4 +1,8 @@
+import json, os
 import requests
+
+BROWSER_TOR_URL = os.environ.get("BROWSER_TOR_URL", "http://browser-tor:8081").rstrip("/")
+
 
 def register(ctx):
     schema = {
@@ -8,10 +12,10 @@ def register(ctx):
             "type": "object",
             "properties": {
                 "url": {"type": "string", "description": "URL da visitare"},
-                "wait_selector": {"type": "string", "description": "Selettore CSS opzionale"}
+                "wait_selector": {"type": "string", "description": "Selettore CSS opzionale"},
             },
-            "required": ["url"]
-        }
+            "required": ["url"],
+        },
     }
 
     def handler(args=None, **kwargs):
@@ -23,10 +27,14 @@ def register(ctx):
             payload = {"url": url, "extract_text": True, "block_media": True, "js_enabled": True}
             if a.get("wait_selector"):
                 payload["wait_selector"] = a["wait_selector"]
-            resp = requests.post("http://browser-tor:8081/browse", json=payload, timeout=60)
+            resp = requests.post(f"{BROWSER_TOR_URL}/browse", json=payload, timeout=100)
+            if resp.status_code == 400:
+                return f"Errore: URL rifiutato ({resp.json().get('detail', '')})"
             resp.raise_for_status()
-            import json as _json
-            return _json.dumps(resp.json(), ensure_ascii=False)[:5000]
+            data = resp.json()
+            if isinstance(data.get("text"), str):
+                data["text"] = data["text"][:4500]
+            return json.dumps(data, ensure_ascii=False)
         except Exception as e:
             return f"Errore Tor: {e}"
 
