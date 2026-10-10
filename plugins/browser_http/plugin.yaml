@@ -1,0 +1,6 @@
+name: browser_http
+version: 1.0.0
+description: Direct HTTP fetch with Chrome impersonation (curl_cffi)
+author: thotganesh
+license: MIT
+homepage: https://github.com/thotganesh/hermes-stealth-stack

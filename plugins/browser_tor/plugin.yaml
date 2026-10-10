@@ -1,0 +1,6 @@
+name: browser_tor
+version: 1.0.0
+description: Anonymous reads via Tor (NEWNYM per request)
+author: thotganesh
+license: MIT
+homepage: https://github.com/thotganesh/hermes-stealth-stack

@@ -1,0 +1,6 @@
+name: solverr_fetch
+version: 1.0.0
+description: Solves Cloudflare challenges via FlareSolverr
+author: thotganesh
+license: MIT
+homepage: https://github.com/thotganesh/hermes-stealth-stack

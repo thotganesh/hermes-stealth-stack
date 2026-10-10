@@ -1,0 +1,6 @@
+name: browser_clear
+version: 1.0.0
+description: Stealth Chromium (Patchright) for JS-heavy pages
+author: thotganesh
+license: MIT
+homepage: https://github.com/thotganesh/hermes-stealth-stack

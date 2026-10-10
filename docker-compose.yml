@@ -1,0 +1,55 @@
+services:
+  camofox:
+    image: ghcr.io/jo-inc/camofox-browser:latest
+    container_name: camofox
+    restart: unless-stopped
+    networks: [stealth-net]
+    environment:
+      CAMOFOX_PORT: "${CAMOFOX_PORT:-9377}"
+    volumes:
+      - ${CAMOFOX_PREFS_PATH:-./camofox/prefs/user.js}:/root/.camofox/profiles/user.js:ro
+
+  camofox-tor:
+    image: ghcr.io/jo-inc/camofox-browser:latest
+    container_name: camofox-tor
+    restart: unless-stopped
+    networks: [stealth-net]
+    environment:
+      CAMOFOX_PORT: "${CAMOFOX_PORT:-9377}"
+      PROXY_HOST: "${TOR_SOCKS_HOST:-tor-proxy}"
+      PROXY_PORT: "${TOR_SOCKS_PORT:-9150}"
+      PROXY_PROTOCOL: "socks5"
+      CAMOFOX_ALLOW_PRIVATE_NETWORK: "true"
+    volumes:
+      - ${CAMOFOX_PREFS_PATH:-./camofox/prefs/user.js}:/root/.camofox/profiles/user.js:ro
+
+  camofox-i2p:
+    image: ghcr.io/jo-inc/camofox-browser:latest
+    container_name: camofox-i2p
+    restart: unless-stopped
+    networks: [stealth-net]
+    environment:
+      CAMOFOX_PORT: "${CAMOFOX_PORT:-9377}"
+      PROXY_HOST: "${I2P_HTTP_HOST:-i2p-proxy}"
+      PROXY_PORT: "${I2P_HTTP_PORT:-4444}"
+      PROXY_PROTOCOL: "http"
+      CAMOFOX_ALLOW_PRIVATE_NETWORK: "true"
+    volumes:
+      - ${CAMOFOX_PREFS_PATH:-./camofox/prefs/user.js}:/root/.camofox/profiles/user.js:ro
+
+  camofox-router:
+    build:
+      context: ./camofox/router
+    container_name: camofox-router
+    restart: unless-stopped
+    networks: [stealth-net]
+    environment:
+      CAMOFOX_VPS_URL: "${CAMOFOX_VPS_URL:-http://camofox:9377}"
+      CAMOFOX_TOR_URL: "${CAMOFOX_TOR_URL:-http://camofox-tor:9377}"
+      CAMOFOX_I2P_URL: "${CAMOFOX_I2P_URL:-http://camofox-i2p:9377}"
+    depends_on: [camofox, camofox-tor, camofox-i2p]
+
+networks:
+  stealth-net:
+    name: ${DOCKER_NETWORK:-ai-net}
+    external: true

@@ -1,0 +1,6 @@
+name: searxng_search
+version: 1.0.0
+description: Web search via self-hosted SearXNG
+author: thotganesh
+license: MIT
+homepage: https://github.com/thotganesh/hermes-stealth-stack
