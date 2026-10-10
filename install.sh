@@ -141,8 +141,10 @@ fi
 
 if container_running hermes; then
   log "Enabling plugins in Hermes..."
-  docker exec hermes hermes plugins enable "${PLUGINS[@]}" 2>/dev/null \
-    || warn "Could not enable plugins automatically: run 'hermes plugins enable ...' manually"
+  for p in "${PLUGINS[@]}"; do
+    docker exec hermes hermes plugins enable "$p" \
+      || warn "Could not enable '$p': run 'hermes plugins enable $p' manually"
+  done
 
   log "Restarting Hermes to apply changes..."
   docker restart hermes >/dev/null
