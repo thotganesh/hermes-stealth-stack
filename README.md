@@ -125,6 +125,12 @@ Camoufox with Tor is **not** equivalent to Tor Browser:
 Use this stack as a **convenience layer for scripted browsing**, not as a
 replacement for a proper anonymity setup.
 
+## Routing is per-tab, not per-URL
+
+Once a tab is created with a `tor+` or `i2p+` prefix (or with a `.onion`/`.i2p` URL), all subsequent navigations on that tab stay on the same backend. To switch backend, create a new tab.
+
+This is intentional. It prevents an anonymous session from accidentally leaking through the host IP if you forget the prefix on a follow-up navigation.
+
 ## Security model
 
 This stack assumes the Docker network (default: `ai-net`) is trusted.

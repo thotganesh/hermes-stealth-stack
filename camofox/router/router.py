@@ -174,6 +174,12 @@ async def proxy(path: str, request: Request):
     if backend is None:
         backend = "vps"
 
+    # Strip routing prefix (tor+/i2p+) from any URL in the body before forwarding.
+    # camofox-browser does not understand the prefix and returns 400 on /navigate.
+    if body_json and "url" in body_json:
+        _, clean_url = _pick(body_json["url"])
+        body_json["url"] = clean_url
+
     target = f"{BACKENDS[backend]}/{path}"
     if request.url.query:
         target += f"?{request.url.query}"
