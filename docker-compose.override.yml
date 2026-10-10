@@ -1,0 +1,28 @@
+x-camofox: &camofox
+  image: hermes-stealth/camofox:1.0.3
+  build:
+    context: ./camofox
+    args:
+      BASE_IMAGE: ${CAMOFOX_IMAGE:-ghcr.io/jo-inc/camofox-browser:latest}
+  shm_size: "1gb"
+  mem_limit: 2g
+
+services:
+  camofox:
+    <<: *camofox
+  camofox-tor:
+    <<: *camofox
+  camofox-i2p:
+    <<: *camofox
+  camofox-router:
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9378/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+  searxng:
+    environment:
+      SEARXNG_SECRET: "${SEARXNG_SECRET:-}"
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml

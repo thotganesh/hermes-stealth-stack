@@ -87,10 +87,22 @@ If you need `tor-proxy` or `i2p-proxy`, see [openwebui-tor-i2p-scraper](https://
     ├── install.sh
     └── .env.example
 
+## Privacy hardening (v1.0.3)
+
+camofox-browser does **not** read Firefox `user.js` files: it launches Camoufox through
+`camoufox-js` with a temporary Playwright profile, so `camofox/prefs/user.js` has no effect.
+Instead, `camofox/Dockerfile` builds a small derived image that patches the launch options:
+`block_webrtc: true` plus `firefox_user_prefs` (`network.proxy.socks_remote_dns=true`,
+`media.peerconnection.enabled=false`).
+
+Verify it on your own host with `./test-privacy.sh` (WebRTC off, Tor exit, no UDP/DNS outside
+the proxy). Limits: the un-prefixed backend (`camofox`) exits with the host IP by design; the
+patch relies on a string in upstream `server.js`, so the image build fails loudly if upstream
+changes it (pin `CAMOFOX_IMAGE` to a digest for reproducible builds). These checks do not
+guarantee anonymity.
+
 ## Privacy & anonymity
 
-- WebRTC disabled in every Camofox instance
-- Remote DNS forced via SOCKS5
 - Separate sessions per backend (VPS / Tor / I2P)
 - Persistent storage state for multi-turn logins
 - Idle shutdown after 120s to save RAM
