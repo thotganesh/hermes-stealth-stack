@@ -15,6 +15,8 @@ services:
   camofox-i2p:
     <<: *camofox
   camofox-router:
+    environment:
+      ROUTER_API_KEY: "${ROUTER_API_KEY:-}"
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9378/health', timeout=3)"]
       interval: 30s

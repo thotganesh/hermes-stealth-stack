@@ -16,6 +16,7 @@ BACKENDS = {
 STATE_TTL = int(os.environ.get("ROUTER_STATE_TTL", "3600"))
 MAX_ENTRIES = int(os.environ.get("ROUTER_MAX_ENTRIES", "10000"))
 ALLOW_UPLOAD = os.environ.get("ROUTER_ALLOW_UPLOAD", "0") == "1"
+ROUTER_API_KEY = os.environ.get("ROUTER_API_KEY", "").strip()
 
 
 class TTLCache:
@@ -55,7 +56,8 @@ PREFIX_RE = re.compile(r"^(tor|i2p)\+(.*)$", re.IGNORECASE | re.DOTALL)
 TAB_PATH = re.compile(r"^tabs/([A-Za-z0-9-]{16,})(/[a-z-]+)?$")
 SESS_PATH = re.compile(r"^sessions/([^/]+)(/(?:cookies|traces)(?:/[^/]+)?)?$")
 NUMERIC_HOST = re.compile(r"(0x[0-9a-f]+|\d+)(\.(0x[0-9a-f]+|\d+))*")
-HOP = {"host", "content-length", "connection", "transfer-encoding", "x-camofox-backend"}
+HOP = {"host", "content-length", "connection", "transfer-encoding",
+       "x-camofox-backend", "authorization"}
 
 
 def _err(status, code, **extra):
@@ -142,6 +144,14 @@ async def _send(client, backend, method, path, query, headers, body_json, raw):
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy(path: str, request: Request):
     method = request.method
+
+    # Optional Bearer auth (fail-closed if ROUTER_API_KEY is set)
+    if ROUTER_API_KEY:
+        auth = request.headers.get("authorization", "")
+        if not auth.startswith("Bearer ") or auth[7:].strip() != ROUTER_API_KEY:
+            return _err(401, "unauthorized",
+                        hint="set Authorization: Bearer <ROUTER_API_KEY>")
+
     create = path == "tabs" and method == "POST"
     listing = path == "tabs" and method == "GET"
     tab_m = TAB_PATH.match(path)
