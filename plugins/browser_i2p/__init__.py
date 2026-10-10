@@ -23,7 +23,8 @@ def register(ctx):
                                  json={"url": url, "extract_text": True, "block_media": True, "js_enabled": True},
                                  timeout=60)
             resp.raise_for_status()
-            return str(resp.json())[:5000]
+            import json as _json
+            return _json.dumps(resp.json(), ensure_ascii=False)[:5000]
         except Exception as e:
             return f"Errore I2P: {e}"
 

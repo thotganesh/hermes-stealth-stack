@@ -49,7 +49,29 @@ services:
       CAMOFOX_I2P_URL: "${CAMOFOX_I2P_URL:-http://camofox-i2p:9377}"
     depends_on: [camofox, camofox-tor, camofox-i2p]
 
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    restart: unless-stopped
+    networks: [stealth-net]
+    profiles: [full]
+    volumes:
+      - searxng-data:/etc/searxng
+
+  solverr:
+    image: ghcr.io/unseensnick/solverr:latest
+    container_name: solverr
+    restart: unless-stopped
+    networks: [stealth-net]
+    profiles: [full]
+    environment:
+      LOG_LEVEL: info
+      PORT: "8191"
+
 networks:
   stealth-net:
     name: ${DOCKER_NETWORK:-ai-net}
     external: true
+
+volumes:
+  searxng-data:

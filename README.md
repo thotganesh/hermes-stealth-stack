@@ -95,6 +95,25 @@ If you need `tor-proxy` or `i2p-proxy`, see openwebui-tor-i2p-scraper.
 - Persistent storage state for multi-turn logins
 - Idle shutdown after 120s to save RAM
 
+## Security model
+
+This stack assumes the Docker network (default: `ai-net`) is trusted.
+
+- The router has no authentication. Any container on the same network can
+  create tabs, read snapshots, and impersonate another userId. This is
+  intentional: the router is designed for a private, single-user deployment
+  where only Hermes and the Camofox backends share the network.
+- Do not expose port 9378 publicly. If you need remote access, put the router
+  behind a reverse proxy with authentication, or use an SSH tunnel.
+- State is in-memory. Sessions, tabs and user-backend mappings live only in
+  the router process. A restart clears them. Sessions expire after 1 hour of
+  inactivity (configurable via ROUTER_STATE_TTL), and the maps are bounded
+  to 10,000 entries (configurable via ROUTER_MAX_ENTRIES).
+- Tab backend is never guessed. If a tab ID is unknown (expired or after a
+  router restart), the router returns HTTP 409 instead of silently routing
+  the request through the default (VPS) backend. This prevents an anonymous
+  session from accidentally leaking through the host IP.
+
 ## License
 
 MIT - see LICENSE.

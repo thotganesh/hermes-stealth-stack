@@ -29,7 +29,8 @@ def register(ctx):
                 timeout=30,
             )
             resp.raise_for_status()
-            return str(resp.json())[:5000]
+            import json as _json
+            return _json.dumps(resp.json(), ensure_ascii=False)[:5000]
         except Exception as e:
             return f"Errore HTTP browser: {e}"
 

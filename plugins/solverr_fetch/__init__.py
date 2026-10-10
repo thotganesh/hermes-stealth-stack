@@ -27,8 +27,9 @@ def register(ctx):
             resp.raise_for_status()
             data = resp.json()
             solution = data.get("solution", {})
-            return str({"status": data.get("status"), "url": solution.get("url"),
-                        "response": str(solution.get("response", ""))[:4000]})
+            import json as _json
+            return _json.dumps({"status": data.get("status"), "url": solution.get("url"),
+                        "response": str(solution.get("response", ""))[:4000]}, ensure_ascii=False)
         except Exception as e:
             return f"Errore Solverr: {e}"
 

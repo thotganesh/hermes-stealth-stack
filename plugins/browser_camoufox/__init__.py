@@ -25,7 +25,8 @@ def register(ctx):
                                  json={"url": url, "block_media": False, "humanize": True, "os": "windows", "wait_ms": wait_ms},
                                  timeout=90)
             resp.raise_for_status()
-            return str(resp.json())[:5000]
+            import json as _json
+            return _json.dumps(resp.json(), ensure_ascii=False)[:5000]
         except Exception as e:
             return f"Errore Camoufox: {e}"
 

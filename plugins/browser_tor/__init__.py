@@ -25,7 +25,8 @@ def register(ctx):
                 payload["wait_selector"] = a["wait_selector"]
             resp = requests.post("http://browser-tor:8081/browse", json=payload, timeout=60)
             resp.raise_for_status()
-            return str(resp.json())[:5000]
+            import json as _json
+            return _json.dumps(resp.json(), ensure_ascii=False)[:5000]
         except Exception as e:
             return f"Errore Tor: {e}"
 

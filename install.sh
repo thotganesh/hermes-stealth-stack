@@ -47,9 +47,30 @@ log "Starting Camofox stack + router..."
 docker compose up -d
 
 log "Waiting for router..."
+
+# The router does not publish its port on the host by design.
+# Try reaching it from a container on the same network.
+router_ready() {
+  # 1. If open-webui is up, use it (already in the network, has curl)
+  if docker ps --format '{{.Names}}' | grep -q '^open-webui$'; then
+    docker exec open-webui curl -sf http://camofox-router:9378/health >/dev/null 2>&1 && return 0
+  fi
+  # 2. If hermes is up, try it
+  if docker ps --format '{{.Names}}' | grep -q '^hermes$'; then
+    docker exec hermes curl -sf http://camofox-router:9378/health >/dev/null 2>&1 && return 0
+  fi
+  # 3. Fallback: ephemeral curl container on the same network
+  docker run --rm --network "${NETWORK}" curlimages/curl:latest \
+    -sf http://camofox-router:9378/health >/dev/null 2>&1 && return 0
+  # 4. Last resort: the router container itself (python:3.13-slim has no curl,
+  #    but has python3, so we can use urllib)
+  docker exec camofox-router python3 -c \
+    "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9378/health', timeout=2)" >/dev/null 2>&1 && return 0
+  return 1
+}
+
 for i in {1..30}; do
-  if docker exec open-webui curl -sf http://camofox-router:9378/health >/dev/null 2>&1 || \
-     curl -sf http://127.0.0.1:9378/health >/dev/null 2>&1; then
+  if router_ready; then
     log "Router ready"
     break
   fi
