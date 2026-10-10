@@ -201,3 +201,16 @@ MIT - see LICENSE.
   Use a single Tor path per task if you need a stable identity.
 - Page content returned to the agent is untrusted input (prompt injection). This stack does not make you anonymous against
   fingerprinting or a global adversary.
+
+## browser_tor container (optional)
+
+The `browser_tor` plugin talks to a separate `browser-tor` container, included in `browser-tor/`.
+It needs a `tor-proxy` whose ControlPort (9151) uses the password you set as `TOR_CONTROL_PASSWORD` in `.env`.
+
+    ./install-browser-tor.sh
+
+If a `browser-tor` container already exists, the script leaves it untouched.
+The fresh-install path of this script is untested.
+
+Tests: `./test-routing.sh` (router), `./test-i2p.sh` (I2P fail-safe, briefly stops `i2p-proxy`)
+and `./test-privacy-i2p.sh` (DNS/UDP check on `camofox-i2p`; only outbound connections count).
