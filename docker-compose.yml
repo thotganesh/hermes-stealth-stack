@@ -1,6 +1,6 @@
 services:
   camofox:
-    image: ghcr.io/jo-inc/camofox-browser:latest
+    image: ${CAMOFOX_IMAGE:-ghcr.io/jo-inc/camofox-browser:latest}
     container_name: camofox
     restart: unless-stopped
     networks: [stealth-net]
@@ -10,7 +10,7 @@ services:
       - ${CAMOFOX_PREFS_PATH:-./camofox/prefs/user.js}:/root/.camofox/profiles/user.js:ro
 
   camofox-tor:
-    image: ghcr.io/jo-inc/camofox-browser:latest
+    image: ${CAMOFOX_IMAGE:-ghcr.io/jo-inc/camofox-browser:latest}
     container_name: camofox-tor
     restart: unless-stopped
     networks: [stealth-net]
@@ -24,7 +24,7 @@ services:
       - ${CAMOFOX_PREFS_PATH:-./camofox/prefs/user.js}:/root/.camofox/profiles/user.js:ro
 
   camofox-i2p:
-    image: ghcr.io/jo-inc/camofox-browser:latest
+    image: ${CAMOFOX_IMAGE:-ghcr.io/jo-inc/camofox-browser:latest}
     container_name: camofox-i2p
     restart: unless-stopped
     networks: [stealth-net]
@@ -50,7 +50,7 @@ services:
     depends_on: [camofox, camofox-tor, camofox-i2p]
 
   searxng:
-    image: searxng/searxng:latest
+    image: ${SEARXNG_IMAGE:-searxng/searxng:latest}
     container_name: searxng
     restart: unless-stopped
     networks: [stealth-net]
@@ -59,7 +59,7 @@ services:
       - searxng-data:/etc/searxng
 
   solverr:
-    image: ghcr.io/unseensnick/solverr:latest
+    image: ${SOLVERR_IMAGE:-ghcr.io/unseensnick/solverr:latest}
     container_name: solverr
     restart: unless-stopped
     networks: [stealth-net]

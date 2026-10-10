@@ -73,7 +73,7 @@ The script:
 - `tor-proxy` container (SOCKS5 on `:9150`) for `camofox-tor`
 - `i2p-proxy` container (HTTP proxy on `:4444`) for `camofox-i2p`
 
-If you need `tor-proxy` or `i2p-proxy`, see openwebui-tor-i2p-scraper.
+If you need `tor-proxy` or `i2p-proxy`, see [openwebui-tor-i2p-scraper](https://github.com/thotganesh/openwebui-tor-i2p-scraper).
 
 ## Layout
 
@@ -95,6 +95,24 @@ If you need `tor-proxy` or `i2p-proxy`, see openwebui-tor-i2p-scraper.
 - Persistent storage state for multi-turn logins
 - Idle shutdown after 120s to save RAM
 
+### Important disclaimer on anonymity
+
+Camoufox with Tor is **not** equivalent to Tor Browser:
+
+- The fingerprint is different. Tor Browser patches Firefox specifically to
+  match a uniform fingerprint shared by all users. Camoufox randomizes the
+  fingerprint instead. This is *usually* fine, but it is not the same threat
+  model, and it will not protect you from advanced correlation attacks.
+- The default backend (`camofox`) exits from your **host IP**. You must
+  explicitly prefix URLs with `tor+` to route through Tor. Forgetting the
+  prefix means the request goes out from your server's real address.
+- Traffic analysis, timing attacks, and compromised exit nodes are outside
+  the scope of this project. If you need strong anonymity guarantees, use
+  the Tor Browser directly.
+
+Use this stack as a **convenience layer for scripted browsing**, not as a
+replacement for a proper anonymity setup.
+
 ## Security model
 
 This stack assumes the Docker network (default: `ai-net`) is trusted.
@@ -113,6 +131,34 @@ This stack assumes the Docker network (default: `ai-net`) is trusted.
   router restart), the router returns HTTP 409 instead of silently routing
   the request through the default (VPS) backend. This prevents an anonymous
   session from accidentally leaking through the host IP.
+
+### SSRF risk from CAMOFOX_ALLOW_PRIVATE_NETWORK
+
+The Camofox containers with proxies (camofox-tor, camofox-i2p) run with
+CAMOFOX_ALLOW_PRIVATE_NETWORK=true. This is required for the browser to
+reach the proxy containers (tor-proxy:9150, i2p-proxy:4444) on the Docker
+network, but it also means the browser can navigate to any service on that
+network, including hermes, open-webui, or any other container you have there.
+
+If an attacker (or a malicious page through an agent-driven navigation)
+convinces the browser to open internal URLs like http://hermes:5225/...,
+those services become reachable from the browser context.
+
+Mitigations:
+
+- Keep the Camofox stack on a dedicated Docker network shared only with the
+  proxies, not with your other services.
+- Do not let untrusted input drive the browser_navigate tool without review.
+- If your setup allows, use firewall rules to block the Camofox containers
+  from reaching anything except the proxy ports.
+
+
+### Note on the Solverr image
+
+The compose file uses `ghcr.io/unseensnick/solverr`, a community fork of
+FlareSolverr that is more actively maintained than the upstream image and
+works with the current Cloudflare challenges. If you prefer the official
+image, override `SOLVERR_IMAGE` in your `.env`.
 
 ## License
 

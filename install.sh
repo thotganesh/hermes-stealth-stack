@@ -11,7 +11,7 @@ command -v docker >/dev/null 2>&1 || err "Docker not found"
 docker compose version >/dev/null 2>&1 || err "Docker Compose v2 not found"
 
 [ -f .env ] || { warn ".env not found, copying from .env.example"; cp .env.example .env; }
-source .env
+set -a; . ./.env; set +a
 
 NETWORK="${DOCKER_NETWORK:-ai-net}"
 if ! docker network inspect "$NETWORK" >/dev/null 2>&1; then
@@ -44,7 +44,15 @@ for p in browser_http browser_clear browser_camoufox browser_tor browser_i2p sea
 done
 
 log "Starting Camofox stack + router..."
-docker compose up -d
+
+# Which profile? Ask the user, or use --profile full if SEARXNG_URL is set
+if grep -q '^SEARXNG_URL=' .env; then
+  log "Starting with profile 'full' (includes searxng + solverr)"
+  docker compose --profile full up -d
+else
+  log "Starting with default profile (Camofox + router only)"
+  docker compose up -d
+fi
 
 log "Waiting for router..."
 
@@ -60,7 +68,7 @@ router_ready() {
     docker exec hermes curl -sf http://camofox-router:9378/health >/dev/null 2>&1 && return 0
   fi
   # 3. Fallback: ephemeral curl container on the same network
-  docker run --rm --network "${NETWORK}" curlimages/curl:latest \
+  docker run --rm --network "${NETWORK}" "${CURL_IMAGE:-curlimages/curl:latest}" \
     -sf http://camofox-router:9378/health >/dev/null 2>&1 && return 0
   # 4. Last resort: the router container itself (python:3.13-slim has no curl,
   #    but has python3, so we can use urllib)
@@ -69,18 +77,28 @@ router_ready() {
   return 1
 }
 
+ROUTER_OK=false
 for i in {1..30}; do
   if router_ready; then
     log "Router ready"
+    ROUTER_OK=true
     break
   fi
   sleep 2
 done
 
+if [ "$ROUTER_OK" != "true" ]; then
+  warn "Router did not respond after 60s. Check:"
+  warn "  docker logs camofox-router --tail 30"
+  warn "Installation will continue, but Hermes may not reach the router."
+fi
+
 HERMES_ENV="$HERMES_HOME/.env"
 if [ -f "$HERMES_ENV" ]; then
   if grep -q '^CAMOFOX_URL=' "$HERMES_ENV"; then
-    sed -i.bak 's|^CAMOFOX_URL=.*|CAMOFOX_URL=http://camofox-router:9378|' "$HERMES_ENV"
+    sed -i 's|^CAMOFOX_URL=.*|CAMOFOX_URL=http://camofox-router:9378|' "$HERMES_ENV"
+  # Cleanup: no .bak with secrets left on disk
+  rm -f "$HERMES_ENV.bak"
   else
     echo 'CAMOFOX_URL=http://camofox-router:9378' >> "$HERMES_ENV"
   fi
@@ -94,6 +112,13 @@ if docker ps --format '{{.Names}}' | grep -q '^hermes$'; then
   docker exec hermes hermes plugins enable \
     browser_http browser_clear browser_camoufox browser_tor browser_i2p \
     searxng_search solverr_fetch 2>/dev/null || warn "Enable manually"
+
+  log "Restarting Hermes to apply changes..."
+  docker restart hermes
+  sleep 40
+  if systemctl list-unit-files | grep -q hermes-egress.service; then
+    systemctl restart hermes-egress.service 2>/dev/null || true
+  fi
 fi
 
 echo ""
