@@ -11,19 +11,20 @@ Stealth browsing, Tor and I2P for [Hermes Agent](https://github.com/NousResearch
 ## Table of contents
 
 1. [What it is](#what-it-is)
-2. [Architecture](#architecture)
-3. [Requirements](#requirements)
-4. [Installation (step by step)](#installation-step-by-step)
-5. [Tutorial](#tutorial)
-6. [Plugins reference](#plugins-reference)
-7. [Router reference](#router-reference)
-8. [Configuration](#configuration)
-9. [Tests and CI](#tests-and-ci)
-10. [Troubleshooting](#troubleshooting)
-11. [Security model and limits](#security-model-and-limits)
-12. [Changelog](#changelog)
-13. [Repository layout](#repository-layout)
-14. [License and credits](#license-and-credits)
+2. [Use cases](#use-cases)
+3. [Architecture](#architecture)
+4. [Requirements](#requirements)
+5. [Installation (step by step)](#installation-step-by-step)
+6. [Tutorial](#tutorial)
+7. [Plugins reference](#plugins-reference)
+8. [Router reference](#router-reference)
+9. [Configuration](#configuration)
+10. [Tests and CI](#tests-and-ci)
+11. [Troubleshooting](#troubleshooting)
+12. [Security model and limits](#security-model-and-limits)
+13. [Changelog](#changelog)
+14. [Repository layout](#repository-layout)
+15. [License and credits](#license-and-credits)
 
 ---
 
@@ -61,6 +62,60 @@ The stack gives Hermes two complementary ways to browse.
 Decision rule: if you only need to **read**, use a plugin. If you need to **interact** (click, form, login), use `browser_navigate` and pick the exit with the URL prefix.
 
 ---
+
+## Use cases
+
+Five scenarios this stack is designed for. Each one lists the tools, why the stack fits, and what to watch out for.
+
+### 1. Reading a site that blocks automated clients
+
+**Scenario:** you need the text of a page that returns 403 to plain HTTP clients or flags headless Chromium.
+
+**Tools:** `browser_camoufox` (stealth Firefox, humanize) as first try; `browser_clear` (stealth Chromium) as fallback; `browser_http` for the easy cases.
+
+**Why this stack:** the three readers use different fingerprinting surfaces, so you can try them in order without changing client. The [Tutorial](#tutorial) shows the fallback chain: `browser_http` → `browser_clear` → `browser_camoufox`, cost in latency increasing with each step.
+
+**Watch out:** none of these are Tor Browser and none give anonymity guarantees. `browser_camoufox` rotates the fingerprint, which is different from Tor Browser's uniform fingerprint. For real anonymity, use the Tor path (case 2).
+
+### 2. Anonymous research over Tor
+
+**Scenario:** you need to open a page and read its contents through the Tor network, possibly refreshing the circuit between requests.
+
+**Tools:** `browser_tor` (reader) for one-shot anonymous reads; `browser_navigate` with `tor+https://...` for interactive sessions; `camofox-tor` under the hood.
+
+**Why this stack:** `browser_tor` sends a `NEWNYM` to the shared `tor-proxy` before every request and returns `circuit_renewed` in the response. `camofox-tor` is a full stealth browser with `block_webrtc` and remote DNS, so it can be used to log in (not just read).
+
+**Watch out:** `NEWNYM` is global for `tor-proxy`. If you have an ongoing `camofox-tor` session, a `browser_tor` call can change its exit node mid-session and invalidate site sessions. Use one Tor path per task. Snowflake needs 10-30 s after a reboot to reconnect.
+
+### 3. `.onion` and `.i2p` sources
+
+**Scenario:** you have a `.onion` or `.i2p` URL and want to read it without choosing the engine.
+
+**Tools:** `browser_navigate` with the plain URL. The router routes `.onion` to Tor and `.i2p` to I2P automatically.
+
+**Why this stack:** no prefix needed, no extra configuration. `browser_i2p` (reader) is available for one-shot I2P reads. `.i2p` sites can take 10-60 s on the first request because the tunnel has to be built.
+
+**Watch out:** I2P has no outproxy in the default configuration, so `.i2p` sites work but clearnet sites do not go through I2P. Tor `.onion` sites work regardless of the exit IP; the exit node only matters for clearnet.
+
+### 4. Filling a form or logging in (with engine choice)
+
+**Scenario:** you need to log into a site, and you can choose whether the session should exit from the host IP or from Tor.
+
+**Tools:** `browser_navigate` + `browser_snapshot` + `browser_type` + `browser_click`. Prefix `tor+` to route the whole session over Tor, `vps+` or no prefix for the host IP.
+
+**Why this stack:** each engine has an isolated browser context, so cookies from a `tor+` session never leak into a `vps+` session. You can run several tasks in parallel on different engines under the same `userId`. The router keeps one public tab id per task and routes actions to the active engine.
+
+**Watch out:** `browser_type` does not fire React's `onChange` on some modern forms. Use `browser_console` with the native value setter (`Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set`) as a workaround. Keep the number of tabs per engine modest and raise Hermes' `browser.inactivity_timeout` for long multi-step flows.
+
+### 5. Reading a page behind Cloudflare or similar challenges
+
+**Scenario:** the target site shows a Cloudflare interstitial or a Turnstile challenge, and plain reads return the challenge page.
+
+**Tools:** `solverr_fetch` for one-shot reads; `browser_clear` (Chromium with challenge handling) if you need to stay in the browser.
+
+**Why this stack:** `solverr_fetch` calls a FlareSolverr fork that solves most challenges transparently. `browser_clear` is stealth Chromium that falls back to Solverr when it detects a challenge. Both share the URL validation rules of the rest of the stack, so they cannot be pointed at internal services.
+
+**Watch out:** no solver works on every challenge. If both fail, use the interactive browser (`browser_navigate` + `browser_camoufox` or `browser_clear`) and solve the challenge manually via `browser_console`.
 
 ## Architecture
 
