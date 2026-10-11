@@ -113,6 +113,10 @@ The proxy and reader containers come from [openwebui-tor-i2p-scraper](https://gi
 | `browser-clear` | Chromium reader with stealth | 8080 |
 | `browser-tor` | Firefox reader over Tor | 8081 |
 | `browser-i2p` | Firefox reader over I2P | 8083 |
+| `browser-http` | Direct HTTP reader (curl_cffi) | 8084 |
+| `browser-camoufox` | Camoufox reader for anti-bot pages | 8085 |
+| `solverr` | FlareSolverr fork for Cloudflare challenges | 8191 |
+| `searxng` | Self-hosted metasearch | 8080 (8888 on the host) |
 
 Start that stack first, then install this one. It also needs outgoing UDP open for Snowflake and a few minutes of I2P warm-up on first boot.
 
@@ -122,9 +126,9 @@ The plugins are thin HTTP clients. Each one calls a separate container that is *
 
 | Plugin | Calls | Provided by |
 |--------|-------|-------------|
-| `browser_http` | `http://browser-http:8084/browse` | separate container, not published in either repo |
+| `browser_http` | `http://browser-http:8084/browse` | openwebui-tor-i2p-scraper |
 | `browser_clear` | `http://browser-clear:8080/browse` | openwebui-tor-i2p-scraper |
-| `browser_camoufox` | `http://browser-camoufox:8085/browse` | separate container, not published in either repo |
+| `browser_camoufox` | `http://browser-camoufox:8085/browse` | openwebui-tor-i2p-scraper |
 | `browser_i2p` | `http://browser-i2p:8083/browse` | openwebui-tor-i2p-scraper |
 | `browser_tor` | `http://browser-tor:8081/browse` (override with `BROWSER_TOR_URL`) | openwebui-tor-i2p-scraper, or `browser-tor/` in this repo |
 | `searxng_search` | `http://searxng:8080/search` | `searxng` service (profile `full`) |
@@ -165,7 +169,7 @@ Options (environment variables):
 | `SKIP_SCRAPER=1` | off | Skip part 1 |
 | `SKIP_HERMES=1` | off | Skip part 2 |
 
-The script can be re-run. Containers it does not start (`browser-http`, `browser-camoufox` when their folders are missing) are reported as warnings, and the matching plugins return errors until those containers exist.
+The script can be re-run. A service whose folder is missing from the scraper checkout is skipped with a warning, and the matching plugin returns errors until that container exists.
 
 > **Status:** the script passes a syntax check but has not yet been tested end to end on a clean server. On a machine that already runs both stacks, use `SKIP_HERMES=1`, because part 2 recreates the Camofox containers and restarts Hermes, which closes open tabs.
 
