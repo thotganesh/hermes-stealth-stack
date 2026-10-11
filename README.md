@@ -136,6 +136,41 @@ The interactive browsers (`browser_navigate`, `browser_snapshot`, ...) only need
 
 ## Installation (step by step)
 
+### One-shot install (Tor/I2P stack + Hermes stack)
+
+`install-all.sh` installs both halves on a fresh server: first [openwebui-tor-i2p-scraper](https://github.com/thotganesh/openwebui-tor-i2p-scraper) (Tor + Snowflake, I2P, reader containers), then this stack through `./install.sh`.
+
+```bash
+git clone https://github.com/thotganesh/hermes-stealth-stack.git
+cd hermes-stealth-stack
+./install-all.sh
+```
+
+What it does:
+
+1. Checks Docker and Compose v2 and creates the Docker network if missing.
+2. Clones the scraper project (or fast-forwards an existing clone) and prepares `i2p-data`.
+3. Generates the Tor ControlPort password and its hash when they are empty, writes them to the `.env` files (mode 600) and never prints them.
+4. Starts `tor-proxy`, `i2p-proxy`, `browser-clear`, `browser-i2p` and `browser-tor`, plus `browser-http`, `browser-camoufox`, `solverr` and `searxng` when their folders exist in the scraper project. It waits for Tor to bootstrap.
+5. Connects the `hermes` container to the network if needed, then runs `./install.sh`.
+
+Options (environment variables):
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `SCRAPER_DIR` | `~/openwebui-tor-i2p-scraper` | Where the scraper project lives; an existing directory is used as is |
+| `SCRAPER_REPO` | GitHub URL of the scraper project | Repository to clone |
+| `SCRAPER_REF` | unset | Branch or tag to check out after cloning |
+| `BROWSER_TOR` | `scraper` | `scraper` runs the scraper's `browser-tor`; `hermes` runs the one in `browser-tor/` of this repo |
+| `SKIP_SCRAPER=1` | off | Skip part 1 |
+| `SKIP_HERMES=1` | off | Skip part 2 |
+
+The script can be re-run. Containers it does not start (`browser-http`, `browser-camoufox` when their folders are missing) are reported as warnings, and the matching plugins return errors until those containers exist.
+
+> **Status:** the script passes a syntax check but has not yet been tested end to end on a clean server. On a machine that already runs both stacks, use `SKIP_HERMES=1`, because part 2 recreates the Camofox containers and restarts Hermes, which closes open tabs.
+
+To install each half yourself, follow the manual steps below.
+
 ### 1. Clone and configure
 
 ```bash
@@ -549,6 +584,7 @@ hermes-stealth-stack/
 ├── docker-compose.yml
 ├── docker-compose.override.yml
 ├── docker-compose.browser-tor.yml
+├── install-all.sh            # one-shot installer (scraper stack + this stack)
 ├── install.sh
 ├── install-browser-tor.sh
 ├── test-*.sh
