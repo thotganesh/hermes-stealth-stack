@@ -172,7 +172,7 @@ async def browse(req: BrowseRequest):
                                  if route.request.resource_type in {"image", "media", "font"}
                                  else route.continue_())
             try:
-                await page.goto(req.url, wait_until="domcontentloaded", timeout=45000)
+                await page.goto(req.url, wait_until="domcontentloaded", timeout=90000)
                 if req.wait_selector:
                     try:
                         await page.wait_for_selector(req.wait_selector, timeout=10000)
