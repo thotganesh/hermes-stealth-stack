@@ -27,6 +27,13 @@ ALLOW_UPLOAD = os.environ.get("ROUTER_ALLOW_UPLOAD", "0") == "1"
 AUTO_SWITCH = os.environ.get("ROUTER_AUTO_SWITCH", "1") == "1"
 ROUTER_API_KEY = os.environ.get("ROUTER_API_KEY", "").strip()
 
+# Backend di default per i nuovi tab senza prefisso (vps / tor / i2p).
+# Override con ROUTER_DEFAULT_BACKEND. Valore non valido -> "vps".
+DEFAULT_BACKEND = os.environ.get("ROUTER_DEFAULT_BACKEND", "vps").strip() or "vps"
+if DEFAULT_BACKEND not in BACKENDS:
+    DEFAULT_BACKEND = "vps"
+
+
 
 class TTLCache:
     """TTL scorrevole + LRU."""
@@ -420,7 +427,7 @@ async def proxy(path: str, request: Request):
         lk = body_json.get("sessionKey") or body_json.get("listItemId")
         uid = body_json.get("userId")
         wanted, clean = _wanted(url)
-        backend = wanted or (SESSIONS.get(lk) if lk else None) or "vps"
+        backend = wanted or (SESSIONS.get(lk) if lk else None) or DEFAULT_BACKEND
         msg = _check_url(clean, backend)
         if msg:
             return _err(400, "url_rejected", detail=msg)

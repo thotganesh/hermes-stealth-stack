@@ -16,7 +16,7 @@ class BrowseRequest(BaseModel):
     wait_selector: str | None = None
     extract_text: bool = True
     block_media: bool = True
-    js_enabled: bool = True
+    js_enabled: bool = False
 
 
 TOR_PROXY = {"server": "socks5://tor-proxy:9150"}
