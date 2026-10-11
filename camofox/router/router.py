@@ -284,15 +284,40 @@ async def _list_tabs(c, uid, headers):
     return _jresp({"tabs": merged, "backends": per_backend})
 
 
+async def _tab_alive(c, backend, uid, real, headers):
+    """True/False se il backend conosce il tab; None se non verificabile (non droppare)."""
+    try:
+        r = await _send(c, backend, "GET", "tabs", f"userId={uid}", headers, None, None)
+        if r.status_code >= 300:
+            return None
+        return any(isinstance(t, dict) and t.get("tabId") == real
+                   for t in (r.json().get("tabs") or []))
+    except Exception:
+        return None
+
+
+def _drop_tab(ts, backend):
+    real = ts["tabs"].pop(backend, None)
+    if real:
+        REAL_INDEX.delete(real)
+    return real
+
+
 async def _switch(c, pub, ts, wanted, clean, body_json, headers):
     """navigate con backend esplicito diverso da quello attivo. Mai sul tab sbagliato."""
     prev = ts["active"]
     uid = ts.get("uid") or body_json.get("userId")
     real = ts["tabs"].get(wanted)
+    recreated = False
     if not clean:                                    # "tor+" da solo: riattiva senza ricaricare
         if not real:
             return _err(409, "no_tab_on_backend", backend=wanted,
                         hint=f"navigate to {wanted}+https://... to open one")
+        if await _tab_alive(c, wanted, uid, real, headers) is False:
+            _drop_tab(ts, wanted)
+            log.warning("switch pub=%s %s->%s: tab morto sul backend, rimosso", pub, prev, wanted)
+            return _err(409, "no_tab_on_backend", backend=wanted, detail="tab_gone",
+                        hint=f"navigate to {wanted}+https://... to open a new one")
         ts["active"] = wanted
         if ts.get("lk"):
             SESSIONS.set(ts["lk"], wanted)
@@ -306,12 +331,19 @@ async def _switch(c, pub, ts, wanted, clean, body_json, headers):
         nb = dict(body_json)
         nb["url"] = clean
         r = await _send(c, wanted, "POST", f"tabs/{real}/navigate", "", headers, nb, None)
-        if 200 <= r.status_code < 300:
-            ts["active"] = wanted
-            if ts.get("lk"):
-                SESSIONS.set(ts["lk"], wanted)
-            log.info("switch pub=%s %s->%s (navigate su tab parcheggiato)", pub, prev, wanted)
-        return _passthrough(r, wanted)
+        if r.status_code in (404, 410):
+            log.warning("switch pub=%s %s->%s: tab parcheggiato morto (%s), ricreo",
+                        pub, prev, wanted, r.status_code)
+            _drop_tab(ts, wanted)
+            real = None
+            recreated = True
+        else:
+            if 200 <= r.status_code < 300:
+                ts["active"] = wanted
+                if ts.get("lk"):
+                    SESSIONS.set(ts["lk"], wanted)
+                log.info("switch pub=%s %s->%s (navigate su tab parcheggiato)", pub, prev, wanted)
+            return _passthrough(r, wanted)
     nb = {"userId": uid, "url": clean}               # nuovo tab sul backend giusto
     if ts.get("lk"):
         nb["listItemId"] = ts["lk"]
@@ -329,7 +361,8 @@ async def _switch(c, pub, ts, wanted, clean, body_json, headers):
         SESSIONS.set(ts["lk"], wanted)
     log.info("switch pub=%s %s->%s (nuovo tab %s)", pub, prev, wanted, new_real)
     out = r.json()
-    out.update({"tabId": pub, "backend": wanted, "switched_from": prev, "switched": True})
+    out.update({"tabId": pub, "backend": wanted, "switched_from": prev, "switched": True,
+                "recreated": recreated})
     return _jresp(out, wanted)
 
 
@@ -491,6 +524,19 @@ async def proxy(path: str, request: Request):
             r = await _send(c, backend, method, fwd_path, query, headers, body_json, raw)
     except httpx.HTTPError as e:
         return _err(502, "backend_unreachable", backend=targets[0], detail=str(e))
+
+    if tab_m and r.status_code == 410:
+        dead = ts["tabs"].pop(backend, None)
+        if dead:
+            REAL_INDEX.delete(dead)
+        if not ts["tabs"]:
+            _unregister(pub)
+        else:
+            ts["active"] = sorted(ts["tabs"])[0]
+        log.warning("tab pub=%s backend=%s: 410 dal backend, tab rimosso (404 backend_tab_gone)",
+                    pub, backend)
+        return _err(404, "backend_tab_gone", backend=backend,
+                    hint="tab destroyed by backend: create a new tab")
 
     if create and 200 <= r.status_code < 300:
         try:
