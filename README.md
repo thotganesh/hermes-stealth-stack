@@ -455,7 +455,7 @@ The Hermes default is 120 seconds. Raise it for long multi-step flows so parked 
 
 `test-routing.sh` and `test-multitab.sh` use a container as `curl` client. The default is `open-webui`; override with `CURL_CONTAINER=<container>` (any container on the network that has `curl`). The router URL is `ROUTER_URL` (default `http://camofox-router:9378`).
 
-> **Note:** parts of `test-routing.sh` (navigating a vps tab to `tor+` or a `.onion`, expecting `409`) describe the pre-v1.0.11 behaviour and apply with `ROUTER_AUTO_SWITCH=0`. With the default (`1`) the router switches engine instead. `test-multitab.sh` covers the current behaviour.
+> **Note:** `test-routing.sh` adapts to the router mode. With `ROUTER_AUTO_SWITCH=0` it expects `409 backend_mismatch` when a vps tab is navigated to `tor+` or a `.onion`; with the default (`1`) it checks that the router switches engine instead. Export the same value in the shell you run the script from.
 
 Run the dead tab tests inside the router container:
 
@@ -471,13 +471,14 @@ Expected last line: `ALL TESTS PASSED`. The file is not part of the image, so co
 
 `.github/workflows/ci.yml` runs on every push and pull request:
 
-1. `shellcheck` on `install.sh` and `test-privacy.sh`
+1. `shellcheck` on `install.sh`, `install-all.sh` and `test-privacy.sh`
 2. `docker compose --profile full config -q` with `.env.example`
 3. `py_compile` of the router and all plugins
-4. Build of the router image
-5. Build of the patched Camofox image (fails if the upstream `server.js` patch string changed)
+4. Router unit tests (`test_router_dead_tabs.py`, fake backend)
+5. Build of the router image
+6. Build of the patched Camofox image (fails if the upstream `server.js` patch string changed)
 
-The CI does not run the router behaviour tests; run them locally.
+The integration scripts (`test-routing.sh`, `test-multitab.sh`, the privacy tests) need the real stack and are run locally.
 
 ---
 

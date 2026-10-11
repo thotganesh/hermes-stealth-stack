@@ -19,8 +19,12 @@ echo "== 2. Tab vps: nessun downgrade/leak su navigate"
 VPS=$(body -X POST $R/tabs -H "$J" -d '{"userId":"rt","sessionKey":"rt-vps","url":"https://example.com"}' \
   | python3 -c 'import sys,json;print(json.load(sys.stdin).get("tabId",""))')
 [ -n "$VPS" ] || { echo "  FAIL  creazione tab vps"; KO=$((KO+1)); }
-check "navigate tor+ su tab vps"  409 "$(code -X POST $R/tabs/$VPS/navigate -H "$J" -d '{"url":"tor+https://check.torproject.org"}')"
-check "navigate .onion su tab vps" 409 "$(code -X POST $R/tabs/$VPS/navigate -H "$J" -d '{"url":"http://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/"}')"
+if [ "${ROUTER_AUTO_SWITCH:-1}" = "0" ]; then
+  check "navigate tor+ su tab vps"  409 "$(code -X POST $R/tabs/$VPS/navigate -H "$J" -d '{"url":"tor+https://check.torproject.org"}')"
+  check "navigate .onion su tab vps" 409 "$(code -X POST $R/tabs/$VPS/navigate -H "$J" -d '{"url":"http://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/"}')"
+else
+  check "tor+ on a vps tab switches engine (auto-switch)" 1 "$(body -X POST $R/tabs/$VPS/navigate -H "$J" -d '{"url":"tor+https://check.torproject.org/api/ip"}' | grep -c '"switched"')"
+fi
 check "navigate file://"          400 "$(code -X POST $R/tabs/$VPS/navigate -H "$J" -d '{"url":"file:///etc/passwd"}')"
 check "navigate IP privato"       400 "$(code -X POST $R/tabs/$VPS/navigate -H "$J" -d '{"url":"http://169.254.169.254/"}')"
 check "navigate host interno"     400 "$(code -X POST $R/tabs/$VPS/navigate -H "$J" -d '{"url":"http://searxng:8080/"}')"
