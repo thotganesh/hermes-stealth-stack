@@ -167,8 +167,10 @@ async def browse(req: BrowseRequest):
                 java_script_enabled=req.js_enabled)
             page = await context.new_page()
             if req.block_media:
-                await page.route("**/*.{png,jpg,jpeg,gif,svg,woff,woff2,mp4,webm}",
-                                 lambda route: route.abort())
+                await page.route("**/*",
+                                 lambda route: route.abort()
+                                 if route.request.resource_type in {"image", "media", "font"}
+                                 else route.continue_())
             try:
                 await page.goto(req.url, wait_until="domcontentloaded", timeout=45000)
                 if req.wait_selector:
