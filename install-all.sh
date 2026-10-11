@@ -197,7 +197,7 @@ echo ""
 log "All done."
 echo ""
 echo "Next steps:"
-echo "  1. Status:   docker ps --format 'table {{.Names}}\t{{.Status}}'"
+printf '  1. Status:   docker ps --format "table {{.Names}}\\t{{.Status}}"\n'
 echo "  2. Privacy:  ./test-privacy.sh"
 echo "  3. Tabs:     CURL_CONTAINER=<a container with curl on $NETWORK> ./test-multitab.sh"
 echo "  4. Hermes:   /new -> 'visit tor+https://check.torproject.org/api/ip'"
