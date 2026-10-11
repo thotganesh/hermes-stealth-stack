@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # DNS/UDP leak check for camofox-i2p (HTTP proxy). Exit: 0 ok, 1 leak, 2 inconclusive.
 set -uo pipefail
-cd "$(dirname "${BASH_SOURCE[0]}")"
+cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 if [ -f .env ]; then set -a; . ./.env; set +a; fi
 NET="${DOCKER_NETWORK:-ai-net}"
 CURLI="${CURL_IMAGE:-curlimages/curl:latest}"

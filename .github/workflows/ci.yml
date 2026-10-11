@@ -14,7 +14,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq shellcheck
-          shellcheck install.sh install-all.sh test-privacy.sh
+          shellcheck --severity=warning install.sh install-all.sh install-browser-tor.sh test-*.sh
 
       - name: docker compose config (profile full)
         run: |
