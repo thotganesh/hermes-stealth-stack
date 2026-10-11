@@ -1,6 +1,6 @@
 # Hermes Stealth Stack
 
-Stealth browsing, Tor and I2P for [Hermes Agent](https://github.com/NousResearch/hermes-agent), with a small multi-engine router that decides which exit each tab uses.
+Stealth browsing, Tor and I2P for [Hermes Agent](https://github.com/NousResearch/hermes-agent), with a small multi-engine router that decides which network exit each browser tab uses.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -13,16 +13,17 @@ Stealth browsing, Tor and I2P for [Hermes Agent](https://github.com/NousResearch
 1. [What it is](#what-it-is)
 2. [Architecture](#architecture)
 3. [Requirements](#requirements)
-4. [Installation](#installation)
+4. [Installation (step by step)](#installation-step-by-step)
 5. [Tutorial](#tutorial)
-6. [Router reference](#router-reference)
-7. [Configuration](#configuration)
-8. [Tests](#tests)
-9. [Troubleshooting](#troubleshooting)
-10. [Security model and limits](#security-model-and-limits)
-11. [Changelog](#changelog)
-12. [Repository layout](#repository-layout)
-13. [License and credits](#license-and-credits)
+6. [Plugins reference](#plugins-reference)
+7. [Router reference](#router-reference)
+8. [Configuration](#configuration)
+9. [Tests and CI](#tests-and-ci)
+10. [Troubleshooting](#troubleshooting)
+11. [Security model and limits](#security-model-and-limits)
+12. [Changelog](#changelog)
+13. [Repository layout](#repository-layout)
+14. [License and credits](#license-and-credits)
 
 ---
 
@@ -30,21 +31,9 @@ Stealth browsing, Tor and I2P for [Hermes Agent](https://github.com/NousResearch
 
 The stack gives Hermes two complementary ways to browse.
 
-### 1. Fast readers (7 plugins)
+**1. Fast readers.** Seven Hermes plugins that fetch a page and return text. Simple, quick, no interaction. See [Plugins reference](#plugins-reference).
 
-| Plugin | Purpose | Backend |
-|--------|---------|---------|
-| `browser_http` | Direct HTTP fetch | curl_cffi (Chrome impersonation) |
-| `browser_clear` | JS-heavy pages | Patchright (stealth Chromium) |
-| `browser_camoufox` | Anti-bot pages | Camoufox (patched Firefox) |
-| `browser_tor` | Anonymous reads | Tor (NEWNYM per request) |
-| `browser_i2p` | I2P network | i2pd HTTP proxy |
-| `searxng_search` | Web search | Self-hosted SearXNG |
-| `solverr_fetch` | Cloudflare challenges | FlareSolverr |
-
-### 2. Interactive browsers (Camofox + router)
-
-Three [camofox-browser](https://github.com/jo-inc/camofox-browser) instances, each with a different network exit, behind a FastAPI router. They support clicks, form filling, JavaScript execution and persistent sessions.
+**2. Interactive browsers.** Three [camofox-browser](https://github.com/jo-inc/camofox-browser) instances, each with a different network exit, behind a FastAPI router. They support clicks, form filling, JavaScript execution and persistent sessions, through Hermes' `browser_*` tools.
 
 | URL prefix | Engine | Exit |
 |------------|--------|------|
@@ -63,9 +52,13 @@ Three [camofox-browser](https://github.com/jo-inc/camofox-browser) instances, ea
 | Read a bot-protected site | `browser_camoufox` |
 | Read anonymously | `browser_tor` |
 | Read a `.i2p` site | `browser_i2p` |
+| Web search | `searxng_search` |
+| Cloudflare-protected page | `solverr_fetch` |
 | Fill a form or log in | `browser_navigate` + `browser_type` |
 | Navigate and interact over Tor | `browser_navigate` with `tor+https://...` |
 | Visit a `.onion` | `browser_navigate` with `http://xxx.onion` or `tor+http://xxx.onion` |
+
+Decision rule: if you only need to **read**, use a plugin. If you need to **interact** (click, form, login), use `browser_navigate` and pick the exit with the URL prefix.
 
 ---
 
@@ -84,7 +77,7 @@ flowchart LR
 
 ### Tabsets
 
-Hermes only ever sees one **public tab id**. Behind it the router keeps a *tabset*:
+Hermes only ever sees one **public tab id** per task. Behind it the router keeps a *tabset*:
 
 ```
 public tab id -> { uid, active engine, tabs: { vps: realId, tor: realId, i2p: realId } }
@@ -94,56 +87,100 @@ public tab id -> { uid, active engine, tabs: { vps: realId, tor: realId, i2p: re
 - Navigating with an explicit prefix (`vps+`, `tor+`, `i2p+`) to a different engine **never navigates the wrong tab**. The router creates a tab on the requested engine (or reuses the parked one), makes it active, and parks the previous one.
 - Parked tabs keep their page and cookies until the engine's idle timeout.
 - Each engine has its own isolated browser context: **logins are not shared between engines**.
-- State is in memory. A router restart clears it (see [Troubleshooting](#troubleshooting)).
+- Several Hermes tasks (subagents) use different `userId`s, so they get separate contexts, each on its own engine.
+- State is kept in memory. A router restart clears it (see [Troubleshooting](#troubleshooting)).
+
+### Derived Camofox image
+
+camofox-browser does not read Firefox `user.js` files. `camofox/Dockerfile` therefore builds a small derived image that patches the launch options in `/app/server.js`: `block_webrtc: true` plus `firefox_user_prefs` (`network.proxy.socks_remote_dns=true`, `media.peerconnection.enabled=false`). The build fails loudly if the upstream string changes. Pin `CAMOFOX_IMAGE` to a digest for reproducible builds.
 
 ---
 
 ## Requirements
 
 - Docker with Compose v2
-- Hermes Agent running in Docker
-- A Docker network shared by Hermes, the Camofox containers and the router (default `ai-net`)
+- Hermes Agent running in Docker (container named `hermes`)
+- A Docker network shared by Hermes, the Camofox containers and the router (default `ai-net`, created by the installer if missing)
 - A `tor-proxy` container (SOCKS5 on `:9150`) for `camofox-tor`
 - An `i2p-proxy` container (HTTP proxy on `:4444`) for `camofox-i2p`
 
 If you need the proxy containers, see [openwebui-tor-i2p-scraper](https://github.com/thotganesh/openwebui-tor-i2p-scraper).
 
+### Containers used by the fast-reader plugins
+
+The plugins are thin HTTP clients. Each one calls a separate container that is **not** part of this compose file, except `browser-tor`:
+
+| Plugin | Calls | Provided by |
+|--------|-------|-------------|
+| `browser_http` | `http://browser-http:8084/browse` | external container |
+| `browser_clear` | `http://browser-clear:8080/browse` | external container |
+| `browser_camoufox` | `http://browser-camoufox:8085/browse` | external container |
+| `browser_i2p` | `http://browser-i2p:8083/browse` | external container |
+| `browser_tor` | `http://browser-tor:8081/browse` (override with `BROWSER_TOR_URL`) | `browser-tor/` in this repo, or external |
+| `searxng_search` | `http://searxng:8080/search` | `searxng` service (profile `full`) |
+| `solverr_fetch` | `http://solverr:8191` (override with `SOLVERR_URL`) | `solverr` service (profile `full`) |
+
+The interactive browsers (`browser_navigate`, `browser_snapshot`, ...) only need the router and the Camofox containers. A plugin whose container is missing returns an error string; the others keep working.
+
 ---
 
-## Installation
+## Installation (step by step)
+
+### 1. Clone and configure
 
 ```bash
 git clone https://github.com/thotganesh/hermes-stealth-stack.git
 cd hermes-stealth-stack
 cp .env.example .env
+```
+
+Edit `.env` if needed (network name, image pins, proxy host names). Never commit `.env`.
+
+### 2. Run the installer
+
+```bash
 ./install.sh
 ```
 
-The installer:
+What it does:
 
-1. Checks Docker and Compose v2, creates the network if missing.
+1. Checks Docker and Compose v2; creates the network if it does not exist.
 2. Warns if `tor-proxy` or `i2p-proxy` are not running.
-3. Copies the plugins into `~/.hermes/plugins/` (7 with `INSTALL_FULL=true`, 5 otherwise).
-4. Builds and starts `camofox`, `camofox-tor`, `camofox-i2p`, `camofox-router` (plus `searxng` and `solverr` in full mode, reusing existing containers).
+3. Copies the plugins into `~/.hermes/plugins/` (all 7 with `INSTALL_FULL=true`, 5 otherwise). Set `HERMES_HOME` if your Hermes data is elsewhere.
+4. Builds and starts `camofox`, `camofox-tor`, `camofox-i2p`, `camofox-router`, plus `searxng` and `solverr` in full mode. Existing `searxng`/`solverr` containers are reused, not touched. A `SEARXNG_SECRET` is generated if empty.
 5. Waits for the router healthcheck.
-6. Sets `CAMOFOX_URL=http://camofox-router:9378` (and `SEARXNG_URL`, `SOLVERR_URL`) in Hermes' `.env`.
-7. Enables the plugins and restarts the `hermes` container.
+6. Sets `CAMOFOX_URL=http://camofox-router:9378` (and `SEARXNG_URL`, `SOLVERR_URL`) in `~/.hermes/.env`.
+7. Enables the plugins and restarts the `hermes` container. If `HERMES_RESTART_UNIT` is set, it restarts that systemd unit too.
 
-> `docker-compose.override.yml` builds a derived image (`hermes-stealth/camofox:1.0.3`) that applies privacy patches (WebRTC off, remote DNS). Use `docker compose up -d --build` so the override is applied.
+### 3. Verify
 
-Optional `browser_tor` container:
+```bash
+docker compose ps
+docker run --rm --network ai-net curlimages/curl:latest -s http://camofox-router:9378/health
+```
+
+### 4. First test from Hermes
+
+```
+/new
+Use browser_navigate to visit tor+https://check.torproject.org/api/ip
+```
+
+You should see `"IsTor":true`.
+
+### Optional: `browser-tor` container
 
 ```bash
 ./install-browser-tor.sh
 ```
 
-It needs a `tor-proxy` whose ControlPort (9151) uses the password set as `TOR_CONTROL_PASSWORD` in `.env`. The fresh-install path of this script is untested.
+Requires `TOR_CONTROL_PASSWORD` in `.env`, the same password as the ControlPort (9151) of your `tor-proxy`. If a `browser-tor` container already exists it is left untouched. The fresh-install path of this script is untested.
 
 ---
 
 ## Tutorial
 
-The router is not published on a host port. Examples below run `curl` from a container on the same network. Replace `ai-net` if you changed `DOCKER_NETWORK`.
+The router is not published on a host port. The examples run `curl` from a container on the same network:
 
 ```bash
 alias rcurl='docker run --rm --network ai-net curlimages/curl:latest -s'
@@ -155,8 +192,6 @@ alias rcurl='docker run --rm --network ai-net curlimages/curl:latest -s'
 rcurl http://camofox-router:9378/health
 rcurl http://camofox-router:9378/router/stats
 ```
-
-`/health` reports each engine; `/router/stats` shows router state counters.
 
 ### 2. Open a tab over Tor
 
@@ -184,9 +219,9 @@ rcurl -X POST http://camofox-router:9378/tabs/<TAB_ID>/navigate \
 
 The response includes `"switched": true` and `"switched_from": "tor"`. The Tor tab stays alive in the background.
 
-### 4. Switch back without reloading
+### 5. Switch back without reloading
 
-A prefix with no URL reactivates the parked tab as it was:
+A prefix with no URL reactivates the parked tab exactly as it was:
 
 ```bash
 rcurl -X POST http://camofox-router:9378/tabs/<TAB_ID>/navigate \
@@ -194,15 +229,19 @@ rcurl -X POST http://camofox-router:9378/tabs/<TAB_ID>/navigate \
   -d '{"userId":"demo","url":"tor+"}'
 ```
 
-From v1.0.12 the router first checks that the tab still exists on the engine. If it was destroyed, you get `409 no_tab_on_backend` instead of a false success.
+Since v1.0.12 the router first checks that the tab still exists on the engine. If it was destroyed you get `409 no_tab_on_backend` instead of a false success.
 
-### 5. `.onion` and `.i2p`
+### 6. `.onion` and `.i2p`
 
-These are routed automatically: a `.onion` URL goes to Tor, a `.i2p` URL goes to I2P, with no prefix needed.
+Routed automatically: a `.onion` URL goes to Tor, a `.i2p` URL goes to I2P, no prefix needed.
 
-### 6. Use it from Hermes
+### 7. Clean up
 
-In a Hermes chat, plain language is enough:
+```bash
+rcurl -X DELETE "http://camofox-router:9378/sessions/demo"
+```
+
+### 8. Use it from Hermes
 
 ```
 Open tor+https://check.torproject.org/api/ip and tell me IsTor and the IP.
@@ -210,13 +249,48 @@ Then open vps+https://example.com.
 Then go back to the Tor tab with tor+ alone, without reloading.
 ```
 
-### Rule of thumb for prefixes
+### Prefix rules
 
-- **New tab, no prefix:** goes to the session's engine, or `vps` (host IP) if none.
-- **Existing tab, URL without prefix:** stays on the engine the tab is currently on.
+- **New tab, no prefix:** the session's engine, or `vps` (host IP) if there is none.
+- **Existing tab, URL without prefix:** stays on the engine the tab is currently on. It never switches silently.
 - **Existing tab, explicit prefix:** switches engine as described above.
 
-Forgetting `tor+` on a new tab means the request leaves from the host IP. Always verify with `check.torproject.org/api/ip` when anonymity matters.
+Forgetting `tor+` on a new tab means the request leaves from the host IP. Verify with `check.torproject.org/api/ip` whenever anonymity matters.
+
+---
+
+## Plugins reference
+
+All plugins live in `plugins/<name>/` (`plugin.yaml` + `__init__.py`), are installed by `install.sh`, and are enabled with `hermes plugins enable <name>`. Output is returned as text, truncated to roughly 5000 characters (4500 for the `browser_tor` text field). Error messages returned by the plugins are in Italian.
+
+| Plugin | Parameters | Timeout | Typical speed | JS |
+|--------|-----------|---------|---------------|----|
+| `browser_http` | `url` | 30 s | ~200 ms | no |
+| `browser_clear` | `url`, `wait_selector` (optional CSS selector) | 60 s | 1-3 s | yes |
+| `browser_camoufox` | `url`, `wait_ms` (default 5000) | 90 s | 2-5 s | yes |
+| `browser_tor` | `url`, `wait_selector` (optional) | 100 s | 3-10 s | yes |
+| `browser_i2p` | `url` | 60 s | 10-60 s | yes |
+| `searxng_search` | `query`, `limit` (default 5) | 30 s | < 1 s | n/a |
+| `solverr_fetch` | `url` (validated: http/https, public hosts only) | see plugin | 10-30 s | n/a |
+
+- **browser_http**: direct fetch with Chrome impersonation (curl_cffi). Best for plain HTML and APIs.
+- **browser_clear**: stealth Chromium (Patchright), for modern SPAs and pages with light anti-bot protection.
+- **browser_camoufox**: stealth Firefox with `humanize` enabled and a Windows profile, for sites that block Chromium.
+- **browser_tor**: anonymous reads; NEWNYM before every request. Responses include `circuit_renewed`; set `TOR_REQUIRE_NEWNYM=1` on the `browser-tor` container to fail instead of reusing a circuit. Rejected URLs return a message with the reason.
+- **browser_i2p**: reads through the I2P HTTP proxy, for `.i2p` sites.
+- **searxng_search**: self-hosted metasearch (JSON API); returns title, URL and a 200-character snippet per result.
+- **solverr_fetch**: solves Cloudflare/Turnstile challenges through FlareSolverr (community fork `ghcr.io/unseensnick/solverr`, override with `SOLVERR_IMAGE`).
+
+### Interactive tools (provided by Hermes, routed by this stack)
+
+| Tool | Purpose |
+|------|---------|
+| `browser_navigate` | Open a URL. Prefix `tor+` / `i2p+` / `vps+` selects the exit. Returns `{tabId, url, httpStatus, navigationOk}` |
+| `browser_snapshot` | Structured DOM snapshot of the active tab |
+| `browser_click` | Click an element by ref |
+| `browser_type` | Type into a form field |
+| `browser_scroll`, `browser_back`, `browser_press` | Navigation helpers |
+| `browser_console` | Run JavaScript in the page |
 
 ---
 
@@ -229,13 +303,13 @@ Only these are forwarded; everything else returns `404 route_not_supported`.
 | Route | Purpose |
 |-------|---------|
 | `POST /tabs` | Create a tab |
-| `GET /tabs?userId=` | List tabs across all engines (merged, with `backend` field) |
+| `GET /tabs?userId=` | List tabs across all engines (merged, each with a `backend` field) |
 | `/tabs/{id}` and `/tabs/{id}/{action}` | Actions on the tab (`navigate`, `snapshot`, `click`, ...) |
 | `DELETE /tabs/{id}` | Close **all** tabs of the tabset |
-| `/sessions/{userId}/...` | Session endpoints (cookies, traces) |
+| `/sessions/{userId}/...` | Session endpoints (cookies, traces); `DELETE /sessions/{userId}` fans out to every known engine |
 | `GET /health`, `GET /router/stats` | Diagnostics |
 
-Responses carry an `x-router-backend` header with the engine that served them.
+Responses carry an `x-router-backend` header with the engine that served them. Session-level calls that cannot be attributed to one engine need an `X-Camofox-Backend` header.
 
 ### Error codes
 
@@ -243,15 +317,15 @@ Responses carry an `x-router-backend` header with the engine that served them.
 |------|------|---------------|
 | 400 | `invalid_json`, `body_required`, `userId_required` | Malformed request |
 | 400 | `proxy_override_not_allowed` | Tab creation with a `proxy` field is rejected |
-| 400 | `url_rejected` | URL not allowed (non-http(s), or loopback/private/internal host on `vps`) |
+| 400 | `url_rejected` | URL not allowed: non-http(s), or loopback/private/internal/ambiguous host on `vps` |
 | 401 | `unauthorized` | `ROUTER_API_KEY` is set and the Bearer token is missing or wrong |
 | 403 | `upload_disabled` | Set `ROUTER_ALLOW_UPLOAD=1` to enable `/upload` |
-| 404 | `route_not_supported` | Legacy/global endpoint blocked by design |
-| 404 | `backend_tab_gone` | **v1.0.12.** The engine destroyed the tab (it answered 410). The tab was removed from the tabset: create a new one |
+| 404 | `route_not_supported` | Legacy/global endpoint, blocked by design |
+| 404 | `backend_tab_gone` | The engine destroyed the tab (it answered 410). The tab was removed from the tabset: create a new one |
 | 409 | `backend_mismatch` | Prefix for another engine on a non-navigate call, or auto-switch disabled |
 | 409 | `tab_backend_unknown` | Tab id unknown (expired or router restarted): create a new tab |
 | 409 | `no_tab_on_backend` | Bare prefix (e.g. `tor+`) but no live tab on that engine. `detail: tab_gone` if it died. Navigate to `tor+https://...` to open one |
-| 409 | `session_backend_unknown`, `ambiguous_backend`, `backend_not_known_for_user` | Session-level calls where the engine can't be inferred. Send `X-Camofox-Backend` |
+| 409 | `session_backend_unknown`, `ambiguous_backend`, `backend_not_known_for_user` | Session-level calls where the engine cannot be inferred |
 | 502 | `backend_unreachable`, `backend_bad_response` | Engine down or invalid answer |
 | 207 | (multi-status) | Partial result when closing tabs on several engines |
 
@@ -261,8 +335,10 @@ Responses carry an `x-router-backend` header with the engine that served them.
 |-----------|------------------|
 | Engine answers 410 on `/tabs/{id}/...` | Returns `404 backend_tab_gone`, drops the dead tab from the tabset |
 | Bare `tor+` and the tab is gone on the engine | `409 no_tab_on_backend`, tab dropped |
-| Bare `tor+` and the engine is unreachable | Tab is kept (cannot verify), switch proceeds |
+| Bare `tor+` and the engine is unreachable | Tab is kept (it cannot be verified), switch proceeds |
 | `tor+https://...` on a parked tab that returns 404/410 | Tab recreated transparently, response has `"recreated": true` |
+
+A tab usually dies because an action timed out (for example a click that never completes, logged by the engine as `operation_timeout`) and the engine discards it.
 
 ---
 
@@ -276,11 +352,14 @@ Copy `.env.example` to `.env`.
 |----------|---------|---------|
 | `DOCKER_NETWORK` | `ai-net` | Shared external network |
 | `CAMOFOX_IMAGE` | `ghcr.io/jo-inc/camofox-browser:latest` | Base image (pin a digest for reproducible builds) |
-| `CAMOFOX_VPS_URL` / `CAMOFOX_TOR_URL` / `CAMOFOX_I2P_URL` | `http://camofox*:9377` | Engine URLs used by the router |
-| `TOR_SOCKS_HOST` / `TOR_SOCKS_PORT` | `tor-proxy` / `9150` | Tor SOCKS5 proxy |
-| `I2P_HTTP_HOST` / `I2P_HTTP_PORT` | `i2p-proxy` / `4444` | I2P HTTP proxy |
-| `INSTALL_FULL` | `true` | Also install SearXNG and Solverr plugins |
+| `CAMOFOX_VPS_URL`, `CAMOFOX_TOR_URL`, `CAMOFOX_I2P_URL` | `http://camofox*:9377` | Engine URLs used by the router |
+| `TOR_SOCKS_HOST`, `TOR_SOCKS_PORT` | `tor-proxy`, `9150` | Tor SOCKS5 proxy |
+| `I2P_HTTP_HOST`, `I2P_HTTP_PORT` | `i2p-proxy`, `4444` | I2P HTTP proxy |
+| `SEARXNG_URL`, `SOLVERR_URL` | `http://searxng:8080`, `http://solverr:8191` | Written into Hermes' `.env` |
+| `SEARXNG_IMAGE`, `SOLVERR_IMAGE`, `CURL_IMAGE` | see `.env.example` | Image overrides |
+| `INSTALL_FULL` | `true` | Also install the SearXNG and Solverr plugins and containers |
 | `SEARXNG_SECRET` | generated | SearXNG secret |
+| `HERMES_RESTART_UNIT` | unset | systemd unit to restart after install |
 | `TOR_CONTROL_PASSWORD`, `TOR_REQUIRE_NEWNYM` | empty, `0` | `browser-tor` container |
 | `ROUTER_API_KEY` | empty (off) | Optional Bearer authentication |
 
@@ -288,17 +367,21 @@ Copy `.env.example` to `.env`.
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `ROUTER_API_KEY` | empty | If set, every request needs `Authorization: Bearer <key>`. The built-in Hermes browser tools do not send it, so leave empty unless you use a custom client |
-| `ROUTER_AUTO_SWITCH` | `1` | Allow engine switching on `navigate`. With `0`, a different prefix returns `409 backend_mismatch` |
+| `ROUTER_API_KEY` | empty | If set, every request needs `Authorization: Bearer <key>`. The built-in Hermes browser tools do not send it, so leave it empty unless you use a custom client |
+| `ROUTER_AUTO_SWITCH` | `1` | Allow engine switching on `navigate`. With `0`, a different prefix returns `409 backend_mismatch` (the pre-v1.0.11 behaviour) |
 | `ROUTER_ALLOW_UPLOAD` | `0` | Allow `/upload` |
 | `ROUTER_STATE_TTL` | `3600` | Seconds of inactivity before router state expires |
 | `ROUTER_MAX_ENTRIES` | `10000` | Cap per state map |
 
-Only `ROUTER_API_KEY` is passed through by the provided compose files. To change the others, add them to the `camofox-router` `environment:` section in `docker-compose.override.yml` and recreate the container.
+The provided compose files only pass `ROUTER_API_KEY` through. To change the others, add them to the `camofox-router` `environment:` section of `docker-compose.override.yml` and recreate the container.
 
-### Idle timeout
+### Resources
 
-The browser engines shut down when idle, and Hermes has its own tab inactivity setting:
+The override gives each Camofox container `shm_size: 1gb` and `mem_limit: 2g`. The router has a healthcheck on `/health`.
+
+### Idle timeouts
+
+Camofox shuts the browser down when idle and reaps inactive tabs. Hermes has its own inactivity setting:
 
 ```bash
 hermes config set browser.inactivity_timeout 600
@@ -308,20 +391,24 @@ The Hermes default is 120 seconds. Raise it for long multi-step flows so parked 
 
 ---
 
-## Tests
+## Tests and CI
 
-All tests run locally against real components, except the router unit tests which use a fake backend.
+### Scripts
 
 | Script | What it checks |
 |--------|----------------|
-| `./test-privacy.sh` | WebRTC off on every backend, `IsTor: true` on `camofox-tor`, no UDP/DNS outside the proxy (35 s capture) |
-| `./test-i2p.sh` | I2P fail-safe: stops `i2p-proxy` briefly, expects an error and no silent host-IP leak |
+| `./test-privacy.sh` | WebRTC disabled on every backend (`RTCPeerConnection` must be `undefined`), `IsTor: true` on `camofox-tor`, no UDP/DNS outside the proxy (35 s capture) |
+| `./test-i2p.sh` | I2P fail-safe: stops `i2p-proxy` briefly, expects an error and no silent leak through the host IP, restarts it |
 | `./test-privacy-i2p.sh` | 60 s DNS/UDP capture on `camofox-i2p` (outbound connections only) |
-| `./test-routing.sh` | `tor+`, `i2p+`, `.onion`, `.i2p` reach the right engine |
-| `./test-multitab.sh` | Multi-engine tabs in parallel and switching |
-| `camofox/router/test_router_dead_tabs.py` | Dead tab handling (v1.0.12), with a fake backend |
+| `./test-routing.sh` | Legacy routes blocked (404), private/`file://`/internal URLs rejected (400), unknown tab and session (409), `proxy` field rejected, Tor tab exits from Tor |
+| `./test-multitab.sh` | A vps tab and a tor tab in parallel for the same user, merged `GET /tabs`, Tor exit, engine switch without leak, `vps+` reactivation with state preserved, private URL rejected via switch, session cleanup |
+| `camofox/router/test_router_dead_tabs.py` | Dead tab handling (v1.0.12) against a fake backend. Touches no real engine |
 
-Run the dead tab tests inside the router container (they do not touch real engines):
+`test-routing.sh` and `test-multitab.sh` use a container as `curl` client. The default is `open-webui`; override with `CURL_CONTAINER=<container>` (any container on the network that has `curl`). The router URL is `ROUTER_URL` (default `http://camofox-router:9378`).
+
+> **Note:** parts of `test-routing.sh` (navigating a vps tab to `tor+` or a `.onion`, expecting `409`) describe the pre-v1.0.11 behaviour and apply with `ROUTER_AUTO_SWITCH=0`. With the default (`1`) the router switches engine instead. `test-multitab.sh` covers the current behaviour.
+
+Run the dead tab tests inside the router container:
 
 ```bash
 cd camofox/router
@@ -329,7 +416,19 @@ docker cp test_router_dead_tabs.py camofox-router:/app/
 docker exec camofox-router python /app/test_router_dead_tabs.py
 ```
 
-Expected last line: `ALL TESTS PASSED`. The test file is not part of the image, so it must be copied each time.
+Expected last line: `ALL TESTS PASSED`. The file is not part of the image, so copy it each time.
+
+### Continuous integration
+
+`.github/workflows/ci.yml` runs on every push and pull request:
+
+1. `shellcheck` on `install.sh` and `test-privacy.sh`
+2. `docker compose --profile full config -q` with `.env.example`
+3. `py_compile` of the router and all plugins
+4. Build of the router image
+5. Build of the patched Camofox image (fails if the upstream `server.js` patch string changed)
+
+The CI does not run the router behaviour tests; run them locally.
 
 ---
 
@@ -348,9 +447,9 @@ Rebuilding with the override can also recreate the Camofox engines, which closes
 Router state is in memory. After a restart or rebuild, create a new tab. `GET /tabs?userId=...` re-registers live tabs that exist on exactly one engine.
 
 ### Hermes keeps failing on a dead tab
-Before v1.0.12 the router passed a backend `410 Gone` through unchanged and kept the dead tab in the tabset. Upgrade to v1.0.12: the client then gets `404 backend_tab_gone` and creates a new tab. Typical cause of a destroyed tab: an action timed out (for example a click that never completes, `operation_timeout`) and the engine discarded the tab.
+Before v1.0.12 the router passed a backend `410 Gone` through unchanged and kept the dead tab in the tabset. Upgrade to v1.0.12: the client then receives `404 backend_tab_gone` and creates a new tab.
 
-### Check what the router is doing
+### See what the router is doing
 Every tab creation and engine switch writes a log line with the chosen engine:
 
 ```bash
@@ -358,33 +457,43 @@ docker logs --since 30m camofox-router 2>&1 | grep -vE "GET /health|snapshot|eva
 docker logs --since 30m camofox-tor 2>&1 | tail -20
 ```
 
-Log lines you will see: `create`, `switch ... (nuovo tab)`, `switch ... (riattivato)`, `switch ... (navigate su tab parcheggiato)`, and the v1.0.12 warnings for dead tabs. The log messages are in Italian.
+Router log messages are in Italian: `nuovo tab` (new tab), `riattivato` (reactivated), `navigate su tab parcheggiato` (navigate on parked tab), plus warnings for dead tabs.
 
 ### `WARNING: Unsupported upgrade request`
 Harmless uvicorn noise from websocket probes.
 
+### `proxy pool created but browser pre-warm failed`
+Tor/I2P proxies may be slow to start. Wait 30-60 seconds and retry. Check `docker logs camofox-tor --tail 20` and `docker logs camofox-i2p --tail 20`.
+
+### `browser_exec cannot connect to Docker daemon`
+Hermes is in Browser Use mode. The stack bypasses it through `CAMOFOX_URL`: verify it points to the router and that the Camofox containers are healthy.
+
+### Router not reachable from Hermes
+All containers must be on the same Docker network: `docker network inspect ai-net`.
+
 ### The Tor exit did not change
-`camofox-tor` and `tor-proxy` are separate containers. Restarting `camofox-tor` does not renew the circuit. NEWNYM is sent to the shared `tor-proxy` and affects every user of it.
+`camofox-tor` and `tor-proxy` are separate containers; restarting `camofox-tor` does not renew the circuit. NEWNYM goes to the shared `tor-proxy` and affects every user of it.
 
 ---
 
 ## Security model and limits
 
-- **Trusted network.** The router is designed for a private, single-user deployment. By default it has no authentication; any container on the network can create tabs and read snapshots. Enable `ROUTER_API_KEY` for custom clients and do not expose port 9378 publicly (use an SSH tunnel or an authenticating reverse proxy for remote access).
+- **Trusted network.** The router is designed for a private, single-user deployment. By default it has no authentication; any container on the network can create tabs, read snapshots and impersonate another `userId`. Enable `ROUTER_API_KEY` for custom clients. Do not expose port 9378 publicly; use an SSH tunnel or an authenticating reverse proxy for remote access.
 - **Fail-closed routing.** Only the routes listed above are forwarded. Legacy endpoints are blocked.
 - **Backend is never guessed.** An unknown tab id returns 409 rather than being sent to the default engine.
-- **URL validation.** Only `http`/`https`. On `vps`, loopback, private, internal and ambiguous numeric hosts are rejected. On `tor` and `i2p` these checks are skipped (see the SSRF note).
-- **Isolated engine contexts.** Logins and cookies are not shared across engines.
-- **Privacy hardening.** The derived image sets `block_webrtc: true` and Firefox prefs for remote DNS and no WebRTC. Verify with `./test-privacy.sh`.
+- **URL validation.** Only `http`/`https`. On `vps`, loopback, private, internal and ambiguous numeric hosts are rejected, including via switch. `solverr_fetch` and `browser-tor` validate URLs too.
+- **Isolated engine contexts.** Cookies and logins are not shared across engines.
+- **Bounded state.** Router state expires after `ROUTER_STATE_TTL` and each map is capped at `ROUTER_MAX_ENTRIES`.
+- **Privacy hardening.** WebRTC off and remote DNS in the derived image; verify with `./test-privacy.sh`.
 
 ### SSRF risk
-`camofox-tor` and `camofox-i2p` run with `CAMOFOX_ALLOW_PRIVATE_NETWORK=true` so the browser can reach the proxy containers. A page (or an agent-driven navigation) can therefore reach other services on the same Docker network. Mitigations: keep the Camofox stack on a network shared only with the proxies, do not let untrusted input drive `browser_navigate`, and use firewall rules to limit the containers to the proxy ports.
+`camofox-tor` and `camofox-i2p` run with `CAMOFOX_ALLOW_PRIVATE_NETWORK=true` so the browser can reach the proxy containers. A page or an agent-driven navigation can therefore reach other services on the same Docker network (Hermes, Open WebUI, ...). Mitigations: keep the Camofox stack on a network shared only with the proxies, do not let untrusted input drive `browser_navigate`, and use firewall rules to limit these containers to the proxy ports.
 
 ### Anonymity disclaimer
-Camoufox with Tor is **not** equivalent to Tor Browser. Camoufox randomizes the fingerprint while Tor Browser uniformizes it, so this is a different threat model and does not defend against advanced correlation. An un-prefixed new tab exits from the **host IP**. Traffic analysis, timing attacks and malicious exits are out of scope. Page content returned to the agent is untrusted input (prompt injection). Use this stack as a convenience layer for scripted browsing, not as a substitute for Tor Browser.
+Camoufox with Tor is **not** equivalent to Tor Browser. Camoufox randomizes the fingerprint while Tor Browser makes all users look the same, so the threat model is different and it does not defend against advanced correlation. A new tab with no prefix exits from the **host IP**. Traffic analysis, timing attacks and malicious exit nodes are out of scope. NEWNYM is global for the shared `tor-proxy` and can change the exit of an ongoing `camofox-tor` session. Page content returned to the agent is untrusted input (prompt injection). Use this stack as a convenience layer for scripted browsing, not as a replacement for Tor Browser.
 
 ### Responsible use
-Respect the terms of service of the sites you automate and the laws that apply to you. Anti-abuse systems on third-party services are not something this project helps to bypass.
+Respect the terms of service of the sites you automate and the laws that apply to you. This project does not help bypass the anti-abuse systems of third-party services.
 
 ---
 
@@ -413,16 +522,23 @@ Privacy hardening (v1.0.3), fail-closed router and URL validation (v1.0.6), opti
 
 ```
 hermes-stealth-stack/
-├── plugins/                 # 7 Hermes plugins
+├── plugins/                  # 7 Hermes plugins (plugin.yaml + __init__.py)
 ├── camofox/
-│   ├── Dockerfile           # derived image with privacy patches
+│   ├── Dockerfile            # derived image with privacy patches
 │   ├── prefs/user.js
-│   └── router/              # FastAPI router + tests
-├── browser-tor/             # optional browser-tor container
+│   └── router/               # FastAPI router, Dockerfile, tests
+├── browser-tor/              # optional browser-tor container
 ├── searxng/settings.yml
-├── docs/                    # ARCHITECTURE, INSTALL, MULTITAB, TOOLS, skill notes
+├── docs/
+│   ├── INSTALL.md
+│   ├── TOOLS.md
+│   ├── MULTITAB.md           # multi-engine tabs
+│   ├── ARCHITECTURE.md
+│   └── SKILL-stealth-web-stack-multitab.md   # Hermes skill notes
+├── .github/workflows/ci.yml
 ├── docker-compose.yml
 ├── docker-compose.override.yml
+├── docker-compose.browser-tor.yml
 ├── install.sh
 ├── install-browser-tor.sh
 ├── test-*.sh
@@ -438,4 +554,4 @@ MIT - see [LICENSE](LICENSE).
 - [Camoufox](https://camoufox.com/) by daijiro
 - [camofox-browser](https://github.com/jo-inc/camofox-browser) by jo-inc
 - [Hermes Agent](https://github.com/NousResearch/hermes-agent) by Nous Research
-- `ghcr.io/unseensnick/solverr`, a community FlareSolverr fork (override with `SOLVERR_IMAGE`)
+- `ghcr.io/unseensnick/solverr`, a community FlareSolverr fork
