@@ -4,8 +4,4 @@ __pycache__/
 *.pyc
 .venv/
 .DS_Store
-*.bak
-*.bak[0-9]*
-
 *.bak*
-__pycache__/
