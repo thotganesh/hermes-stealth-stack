@@ -20,8 +20,8 @@ def register(ctx):
             return "Errore: parametro url mancante"
         try:
             resp = requests.post("http://browser-i2p:8083/browse",
-                                 json={"url": url, "extract_text": True, "block_media": True, "js_enabled": false},
-                                 timeout=60)
+                                 json={"url": url, "extract_text": True, "block_media": True, "js_enabled": False},
+                                 timeout=160)
             resp.raise_for_status()
             import json as _json
             return _json.dumps(resp.json(), ensure_ascii=False)[:5000]

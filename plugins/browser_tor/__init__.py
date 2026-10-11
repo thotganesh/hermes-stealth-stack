@@ -24,7 +24,7 @@ def register(ctx):
         if not url:
             return "Errore: parametro url mancante"
         try:
-            payload = {"url": url, "extract_text": True, "block_media": True, "js_enabled": false}
+            payload = {"url": url, "extract_text": True, "block_media": True, "js_enabled": False}
             if a.get("wait_selector"):
                 payload["wait_selector"] = a["wait_selector"]
             resp = requests.post(f"{BROWSER_TOR_URL}/browse", json=payload, timeout=100)
