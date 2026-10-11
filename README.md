@@ -104,19 +104,29 @@ camofox-browser does not read Firefox `user.js` files. `camofox/Dockerfile` ther
 - A `tor-proxy` container (SOCKS5 on `:9150`) for `camofox-tor`
 - An `i2p-proxy` container (HTTP proxy on `:4444`) for `camofox-i2p`
 
-If you need the proxy containers, see [openwebui-tor-i2p-scraper](https://github.com/thotganesh/openwebui-tor-i2p-scraper).
+The proxy and reader containers come from [openwebui-tor-i2p-scraper](https://github.com/thotganesh/openwebui-tor-i2p-scraper). That project builds, on the same `ai-net` network:
+
+| Container | Role | Port |
+|-----------|------|------|
+| `tor-proxy` | Tor + Snowflake (SOCKS5; ControlPort for NEWNYM) | 9150 / 9151 |
+| `i2p-proxy` | i2pd router (HTTP proxy) | 4444 |
+| `browser-clear` | Chromium reader with stealth | 8080 |
+| `browser-tor` | Firefox reader over Tor | 8081 |
+| `browser-i2p` | Firefox reader over I2P | 8083 |
+
+Start that stack first, then install this one. It also needs outgoing UDP open for Snowflake and a few minutes of I2P warm-up on first boot.
 
 ### Containers used by the fast-reader plugins
 
-The plugins are thin HTTP clients. Each one calls a separate container that is **not** part of this compose file, except `browser-tor`:
+The plugins are thin HTTP clients. Each one calls a separate container that is **not** started by this compose file:
 
 | Plugin | Calls | Provided by |
 |--------|-------|-------------|
-| `browser_http` | `http://browser-http:8084/browse` | external container |
-| `browser_clear` | `http://browser-clear:8080/browse` | external container |
-| `browser_camoufox` | `http://browser-camoufox:8085/browse` | external container |
-| `browser_i2p` | `http://browser-i2p:8083/browse` | external container |
-| `browser_tor` | `http://browser-tor:8081/browse` (override with `BROWSER_TOR_URL`) | `browser-tor/` in this repo, or external |
+| `browser_http` | `http://browser-http:8084/browse` | separate container, not published in either repo |
+| `browser_clear` | `http://browser-clear:8080/browse` | openwebui-tor-i2p-scraper |
+| `browser_camoufox` | `http://browser-camoufox:8085/browse` | separate container, not published in either repo |
+| `browser_i2p` | `http://browser-i2p:8083/browse` | openwebui-tor-i2p-scraper |
+| `browser_tor` | `http://browser-tor:8081/browse` (override with `BROWSER_TOR_URL`) | openwebui-tor-i2p-scraper, or `browser-tor/` in this repo |
 | `searxng_search` | `http://searxng:8080/search` | `searxng` service (profile `full`) |
 | `solverr_fetch` | `http://solverr:8191` (override with `SOLVERR_URL`) | `solverr` service (profile `full`) |
 
@@ -274,7 +284,7 @@ All plugins live in `plugins/<name>/` (`plugin.yaml` + `__init__.py`), are insta
 | `solverr_fetch` | `url` (validated: http/https, public hosts only) | see plugin | 10-30 s | n/a |
 
 - **browser_http**: direct fetch with Chrome impersonation (curl_cffi). Best for plain HTML and APIs.
-- **browser_clear**: stealth Chromium (Patchright), for modern SPAs and pages with light anti-bot protection.
+- **browser_clear**: stealth Chromium, for modern SPAs and pages with light anti-bot protection.
 - **browser_camoufox**: stealth Firefox with `humanize` enabled and a Windows profile, for sites that block Chromium.
 - **browser_tor**: anonymous reads; NEWNYM before every request. Responses include `circuit_renewed`; set `TOR_REQUIRE_NEWNYM=1` on the `browser-tor` container to fail instead of reusing a circuit. Rejected URLs return a message with the reason.
 - **browser_i2p**: reads through the I2P HTTP proxy, for `.i2p` sites.
@@ -555,3 +565,4 @@ MIT - see [LICENSE](LICENSE).
 - [camofox-browser](https://github.com/jo-inc/camofox-browser) by jo-inc
 - [Hermes Agent](https://github.com/NousResearch/hermes-agent) by Nous Research
 - `ghcr.io/unseensnick/solverr`, a community FlareSolverr fork
+- [openwebui-tor-i2p-scraper](https://github.com/thotganesh/openwebui-tor-i2p-scraper): Tor/Snowflake and I2P proxies and the reader containers this stack builds on
