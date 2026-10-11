@@ -89,7 +89,7 @@ def validate_url(url: str) -> None:
     u = urlparse(url)
     if u.scheme not in ("http", "https"):
         raise ValueError("schema non consentito")
-    host = (u.hostname or "").lower()
+    host = (u.hostname or "").lower().rstrip(".")
     if not host or host == "localhost" or host.endswith((".local", ".internal", ".localhost")):
         raise ValueError("host non consentito")
     try:
