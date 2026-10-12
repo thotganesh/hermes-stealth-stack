@@ -4,7 +4,7 @@ Stealth browsing, Tor and I2P for [Hermes Agent](https://github.com/NousResearch
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Current version: v1.0.15** (INSTALL_FULL defaults to false)
+**Current version: v1.0.16** (router hardening)
 
 ---
 
@@ -603,6 +603,12 @@ Respect the terms of service of the sites you automate and the laws that apply t
 ---
 
 ## Changelog
+
+### v1.0.16 - router hardening
+
+- `_wanted`: unknown prefixes (e.g. `foo+https://...`) are now rejected by `_check_url` instead of causing a `KeyError` → 500 in `_send`
+- `_check_url`: non-string URLs (arrays, objects, numbers) return `url non valido` instead of a `TypeError` → 500
+- `SESS_PATH`: `userId` constrained to `[A-Za-z0-9_-]{1,128}` — blocks `..`, `%`, spaces and other characters that could be mis-decoded by the backend
 
 ### v1.0.15 - INSTALL_FULL defaults to false
 

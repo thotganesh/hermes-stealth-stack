@@ -81,7 +81,7 @@ USER_BACKENDS = TTLCache(STATE_TTL, MAX_ENTRIES)  # userId -> {backend: set(publ
 
 PREFIX_RE = re.compile(r"^(vps|tor|i2p)\+(.*)$", re.IGNORECASE | re.DOTALL)
 TAB_PATH = re.compile(r"^tabs/([A-Za-z0-9-]{16,})(/[a-z-]+)?$")
-SESS_PATH = re.compile(r"^sessions/([^/]+)(/(?:cookies|traces)(?:/[^/]+)?)?$")
+SESS_PATH = re.compile(r"^sessions/([A-Za-z0-9_-]{1,128})(/(?:cookies|traces)(?:/[^/]+)?)?$")
 NUMERIC_HOST = re.compile(r"(0x[0-9a-f]+|\d+)(\.(0x[0-9a-f]+|\d+))*")
 HOP = {"host", "content-length", "connection", "transfer-encoding",
        "x-camofox-backend", "authorization"}
@@ -114,7 +114,12 @@ def _wanted(url):
         return None, url
     m = PREFIX_RE.match(url)
     if m:
-        return m.group(1).lower(), m.group(2)
+        prefix = m.group(1).lower()
+        if prefix in BACKENDS:
+            return prefix, m.group(2)
+        # Unknown prefix: leave the URL untouched; _check_url will reject
+        # the scheme instead of causing a KeyError in _send.
+        return None, url
     try:
         host = (urlparse(url).hostname or "").lower().rstrip(".")
     except ValueError:
@@ -130,10 +135,12 @@ def _check_url(url, backend):
     """None se ok, altrimenti messaggio di errore."""
     if not url:
         return None
+    if not isinstance(url, str):
+        return "url non valido"
     try:
         u = urlparse(url)
         host = (u.hostname or "").lower().rstrip(".")
-    except ValueError:
+    except (ValueError, TypeError):
         return "url non valido"
     if u.scheme not in ("http", "https"):
         return "schema non consentito"
