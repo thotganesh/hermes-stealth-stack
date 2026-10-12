@@ -5,7 +5,7 @@ services:
     build: ./browser-tor
     container_name: browser-tor
     restart: unless-stopped
-    networks: [stealth-net]
+    networks: [stealth-net, proxy-net]
     environment:
       TOR_CONTROL_PASSWORD: "${TOR_CONTROL_PASSWORD:?set TOR_CONTROL_PASSWORD in .env}"
       TOR_REQUIRE_NEWNYM: "${TOR_REQUIRE_NEWNYM:-0}"
@@ -18,4 +18,7 @@ services:
 networks:
   stealth-net:
     name: ${DOCKER_NETWORK:-ai-net}
+    external: true
+  proxy-net:
+    name: ${PROXY_NETWORK:-proxy-net}
     external: true

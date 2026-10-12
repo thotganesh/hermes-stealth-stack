@@ -67,6 +67,13 @@ for c in tor-proxy i2p-proxy; do
   fi
 done
 
+# proxy-net: isolated network for tor-proxy / i2p-proxy and their consumers
+PROXY_NETWORK="${PROXY_NETWORK:-proxy-net}"
+if ! docker network inspect "$PROXY_NETWORK" >/dev/null 2>&1; then
+  log "Creating Docker network $PROXY_NETWORK"
+  docker network create "$PROXY_NETWORK" >/dev/null
+fi
+
 # INSTALL_FULL controls whether Hermes creates its own searxng/solverr
 # containers. Leave it false if ai-stack already provides them on the
 # shared network (the common case).

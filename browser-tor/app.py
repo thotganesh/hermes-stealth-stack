@@ -8,6 +8,9 @@ from stem.control import Controller
 from readability import Document
 import html2text
 
+import asyncio as _aio, os as _os
+_SEM = _aio.Semaphore(int(_os.environ.get("MAX_CONCURRENT", "1")))
+
 app = FastAPI()
 
 
@@ -22,10 +25,7 @@ class BrowseRequest(BaseModel):
 TOR_PROXY = {"server": "socks5://tor-proxy:9150"}
 CONTROL_PASSWORD = os.environ.get("TOR_CONTROL_PASSWORD")
 if not CONTROL_PASSWORD:
-    raise RuntimeError(
-        "TOR_CONTROL_PASSWORD is required. "
-        "Set it in the environment before starting this container."
-    )
+    raise RuntimeError("TOR_CONTROL_PASSWORD is required. Set it in the environment before starting this container.")
 
 
 FIREFOX_PREFS = {
@@ -147,6 +147,11 @@ def pulisci_testo(html_content: str) -> str:
 
 @app.post("/browse")
 async def browse(req: BrowseRequest):
+    async with _SEM:
+        return await _browse_impl(req)
+
+
+async def _browse_impl(req: BrowseRequest):
     try:
         validate_url(req.url)
     except ValueError as e:

@@ -13,7 +13,7 @@ services:
     image: ${CAMOFOX_IMAGE:-ghcr.io/jo-inc/camofox-browser:latest}
     container_name: camofox-tor
     restart: unless-stopped
-    networks: [stealth-net]
+    networks: [stealth-net, proxy-net]
     environment:
       CAMOFOX_PORT: "${CAMOFOX_PORT:-9377}"
       PROXY_HOST: "${TOR_SOCKS_HOST:-tor-proxy}"
@@ -27,7 +27,7 @@ services:
     image: ${CAMOFOX_IMAGE:-ghcr.io/jo-inc/camofox-browser:latest}
     container_name: camofox-i2p
     restart: unless-stopped
-    networks: [stealth-net]
+    networks: [stealth-net, proxy-net]
     environment:
       CAMOFOX_PORT: "${CAMOFOX_PORT:-9377}"
       PROXY_HOST: "${I2P_HTTP_HOST:-i2p-proxy}"
@@ -71,6 +71,9 @@ services:
 networks:
   stealth-net:
     name: ${DOCKER_NETWORK:-ai-net}
+    external: true
+  proxy-net:
+    name: ${PROXY_NETWORK:-proxy-net}
     external: true
 
 volumes:

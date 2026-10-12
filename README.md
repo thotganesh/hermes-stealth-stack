@@ -688,3 +688,14 @@ MIT - see [LICENSE](LICENSE).
 - [Hermes Agent](https://github.com/NousResearch/hermes-agent) by Nous Research
 - `ghcr.io/unseensnick/solverr`, a community FlareSolverr fork
 - [openwebui-tor-i2p-scraper](https://github.com/thotganesh/openwebui-tor-i2p-scraper): Tor/Snowflake and I2P proxies and the reader containers this stack builds on
+
+
+---
+
+## 🔒 Security notes
+
+- `browser_http`, `browser_clear` and `browser_camoufox` talk to the `ai-stack` containers, which reject non-public URLs (HTTP 400, shown as "URL rifiutato (...)"). `solverr_fetch` and the Camofox router apply the same rules (trailing dots are stripped before checking).
+- `camofox-tor` and `camofox-i2p` must be attached to `proxy-net`, the isolated network where `tor-proxy` / `i2p-proxy` live. `install.sh` creates it if missing. WebRTC-off and remote-DNS preferences are applied at image build time by `camofox/Dockerfile`; `camofox/prefs/user.js` is kept for reference and is not read by camofox-browser.
+- `INSTALL_FULL=false` is the default: `searxng` and `solverr` are expected from `ai-stack` and are never recreated if they exist. Do not run `docker compose --profile full up` by hand while ai-stack owns them (same `container_name`).
+- `browser_tor` allows up to ~130 s per call (NEWNYM wait + 90 s navigation over Snowflake).
+- Network-level egress rules for the clear-exit containers live in `ai-stack/hardening/`.
