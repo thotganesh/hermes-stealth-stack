@@ -4,7 +4,7 @@ Stealth browsing, Tor and I2P for [Hermes Agent](https://github.com/NousResearch
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Current version: v1.0.12** (multi-engine tabs, dead tab recovery)
+**Current version: v1.0.13** (SSRF hardening, ROUTER_DEFAULT_BACKEND, pinned images)
 
 ---
 
@@ -603,6 +603,14 @@ Respect the terms of service of the sites you automate and the laws that apply t
 ---
 
 ## Changelog
+
+### v1.0.13 - SSRF hardening, ROUTER_DEFAULT_BACKEND, pins
+
+- `router.py`: `ROUTER_DEFAULT_BACKEND` env var (default `vps`, no behaviour change; set to `tor` to make Tor the fallback engine)
+- `docker-compose.override.yml`: pass `ROUTER_DEFAULT_BACKEND` to `camofox-router`
+- `plugins/browser_tor`, `plugins/browser_i2p`: `js_enabled` false (matches the container default)
+- URL validation: strip trailing dot before host comparison (`open-webui.` is now treated as `open-webui`)
+- Image pinning: `CAMOFOX_IMAGE`, `SOLVERR_IMAGE`, `SEARXNG_IMAGE`, `CURL_IMAGE` accept `sha256:` digests in `.env`
 
 ### v1.0.12 - Dead tab handling
 - Backend `410` on `/tabs/{id}/...` is mapped to `404 backend_tab_gone` and the dead tab is removed from the tabset.
