@@ -75,6 +75,18 @@ log "Network $NETWORK OK"
 if [ "$SKIP_SCRAPER" != "1" ]; then
   log "Part 1/2: openwebui-tor-i2p-scraper in $SCRAPER_DIR"
 
+  # Guard: if a tor-proxy container already exists, refuse to clone a
+  # second copy of the scraper. This is the scenario that used to end in a
+  # name conflict (two projects trying to create tor-proxy / browser-tor).
+  if docker ps -a --filter "name=^/tor-proxy$" --format '{{.Names}}' | grep -q .; then
+    EXISTING_DIR="$(docker inspect tor-proxy --format '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}' 2>/dev/null || true)"
+    if [ -n "$EXISTING_DIR" ] && [ "$EXISTING_DIR" != "$SCRAPER_DIR" ]; then
+      err "A tor-proxy container already exists from $EXISTING_DIR, but SCRAPER_DIR is $SCRAPER_DIR.
+    To reuse the running stack: SCRAPER_DIR=$EXISTING_DIR $0
+    To skip part 1 entirely: SKIP_SCRAPER=1 $0"
+    fi
+  fi
+
   if [ -d "$SCRAPER_DIR/.git" ]; then
     log "Updating existing clone (fast-forward only)"
     git -C "$SCRAPER_DIR" pull --ff-only || warn "git pull failed, using the current checkout"
@@ -142,7 +154,10 @@ if [ "$SKIP_SCRAPER" != "1" ]; then
 
   if in_list i2p-proxy "${SERVICES[@]}"; then
     mkdir -p i2p-data
-    chmod -R 777 i2p-data   # i2pd runs as non-root (as in the scraper docs)
+    # i2pd runs as UID 100, GID 65533 inside the container. Give it write
+    # access and keep the directory private (750, not 777).
+    chown -R 100:65533 i2p-data 2>/dev/null || true
+    chmod -R 750 i2p-data
   fi
 
   log "Starting: ${SERVICES[*]}"

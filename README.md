@@ -4,7 +4,7 @@ Stealth browsing, Tor and I2P for [Hermes Agent](https://github.com/NousResearch
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Current version: v1.0.16** (router hardening)
+**Current version: v1.0.17** (install-all hardening)
 
 ---
 
@@ -603,6 +603,11 @@ Respect the terms of service of the sites you automate and the laws that apply t
 ---
 
 ## Changelog
+
+### v1.0.17 - install-all hardening
+
+- `install-all.sh` refuses to clone a second copy of the scraper when a `tor-proxy` container from another directory is already running (used to end in a `name already in use` conflict)
+- `i2p-data` permissions: replaced `chmod -R 777` with `chown -R 100:65533` + `chmod -R 750`, matching the container's `i2pd` user. The fix is no longer undone by a re-run
 
 ### v1.0.16 - router hardening
 
