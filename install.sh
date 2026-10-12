@@ -67,16 +67,19 @@ for c in tor-proxy i2p-proxy; do
   fi
 done
 
-INSTALL_FULL="${INSTALL_FULL:-true}"
+# INSTALL_FULL controls whether Hermes creates its own searxng/solverr
+# containers. Leave it false if ai-stack already provides them on the
+# shared network (the common case).
+INSTALL_FULL="${INSTALL_FULL:-false}"
 
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 PLUGIN_DIR="$HERMES_HOME/plugins"
 [ -d "$PLUGIN_DIR" ] || mkdir -p "$PLUGIN_DIR"
 
-PLUGINS=(browser_http browser_clear browser_camoufox browser_tor browser_i2p)
-if [ "$INSTALL_FULL" = "true" ]; then
-  PLUGINS+=(searxng_search solverr_fetch)
-fi
+# All 7 plugins are installed regardless of INSTALL_FULL. The extra two
+# (searxng_search, solverr_fetch) talk to containers that normally live in
+# ai-stack; if they are missing, the plugin returns an error string.
+PLUGINS=(browser_http browser_clear browser_camoufox browser_tor browser_i2p searxng_search solverr_fetch)
 
 log "Installing ${#PLUGINS[@]} plugins into $PLUGIN_DIR..."
 for p in "${PLUGINS[@]}"; do

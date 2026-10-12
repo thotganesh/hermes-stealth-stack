@@ -4,7 +4,7 @@ Stealth browsing, Tor and I2P for [Hermes Agent](https://github.com/NousResearch
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Current version: v1.0.13** (SSRF hardening, ROUTER_DEFAULT_BACKEND, pinned images)
+**Current version: v1.0.15** (INSTALL_FULL defaults to false)
 
 ---
 
@@ -250,7 +250,7 @@ What it does:
 
 1. Checks Docker and Compose v2; creates the network if it does not exist.
 2. Warns if `tor-proxy` or `i2p-proxy` are not running.
-3. Copies the plugins into `~/.hermes/plugins/` (all 7 with `INSTALL_FULL=true`, 5 otherwise). Set `HERMES_HOME` if your Hermes data is elsewhere.
+3. Copies all 7 plugins into `~/.hermes/plugins/`. Set `HERMES_HOME` if your Hermes data is elsewhere.
 4. Builds and starts `camofox`, `camofox-tor`, `camofox-i2p`, `camofox-router`, plus `searxng` and `solverr` in full mode. Existing `searxng`/`solverr` containers are reused, not touched. A `SEARXNG_SECRET` is generated if empty.
 5. Waits for the router healthcheck.
 6. Sets `CAMOFOX_URL=http://camofox-router:9378` (and `SEARXNG_URL`, `SOLVERR_URL`) in `~/.hermes/.env`.
@@ -461,7 +461,7 @@ Copy `.env.example` to `.env`.
 | `I2P_HTTP_HOST`, `I2P_HTTP_PORT` | `i2p-proxy`, `4444` | I2P HTTP proxy |
 | `SEARXNG_URL`, `SOLVERR_URL` | `http://searxng:8080`, `http://solverr:8191` | Written into Hermes' `.env` |
 | `SEARXNG_IMAGE`, `SOLVERR_IMAGE`, `CURL_IMAGE` | see `.env.example` | Image overrides |
-| `INSTALL_FULL` | `true` | Also install the SearXNG and Solverr plugins and containers |
+| `INSTALL_FULL` | `false` | If `true`, also create the searxng/solverr containers when they are missing. Leave `false` when ai-stack provides them (all 7 plugins are installed regardless) |
 | `SEARXNG_SECRET` | generated | SearXNG secret |
 | `HERMES_RESTART_UNIT` | unset | systemd unit to restart after install |
 | `TOR_CONTROL_PASSWORD`, `TOR_REQUIRE_NEWNYM` | empty, `0` | `browser-tor` container |
@@ -603,6 +603,13 @@ Respect the terms of service of the sites you automate and the laws that apply t
 ---
 
 ## Changelog
+
+### v1.0.15 - INSTALL_FULL defaults to false
+
+- `INSTALL_FULL` now controls only container creation, not plugin installation
+- All 7 plugins are installed regardless of `INSTALL_FULL`
+- Default is `false`: Hermes no longer tries to create its own `searxng`/`solverr` when ai-stack provides them
+- Set `INSTALL_FULL=true` only if you want Hermes to manage those containers itself
 
 ### v1.0.13 - SSRF hardening, ROUTER_DEFAULT_BACKEND, pins
 
