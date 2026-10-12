@@ -116,7 +116,7 @@ def _wanted(url):
     if m:
         return m.group(1).lower(), m.group(2)
     try:
-        host = (urlparse(url).hostname or "").lower()
+        host = (urlparse(url).hostname or "").lower().rstrip(".")
     except ValueError:
         return None, url
     if host.endswith(".onion"):
@@ -132,7 +132,7 @@ def _check_url(url, backend):
         return None
     try:
         u = urlparse(url)
-        host = (u.hostname or "").lower()
+        host = (u.hostname or "").lower().rstrip(".")
     except ValueError:
         return "url non valido"
     if u.scheme not in ("http", "https"):

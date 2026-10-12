@@ -24,6 +24,8 @@ def register(ctx):
             resp = requests.post("http://browser-camoufox:8085/browse",
                                  json={"url": url, "block_media": False, "humanize": True, "os": "windows", "wait_ms": wait_ms},
                                  timeout=90)
+            if resp.status_code == 400:
+                return f"Errore: URL rifiutato ({resp.json().get('detail', '')})"
             resp.raise_for_status()
             import json as _json
             return _json.dumps(resp.json(), ensure_ascii=False)[:5000]

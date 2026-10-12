@@ -28,6 +28,8 @@ def register(ctx):
                 json={"url": url},
                 timeout=30,
             )
+            if resp.status_code == 400:
+                return f"Errore: URL rifiutato ({resp.json().get('detail', '')})"
             resp.raise_for_status()
             import json as _json
             return _json.dumps(resp.json(), ensure_ascii=False)[:5000]
