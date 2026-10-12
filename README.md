@@ -602,6 +602,37 @@ Respect the terms of service of the sites you automate and the laws that apply t
 
 ---
 
+## 🔄 Updating
+
+> [!IMPORTANT]
+> **ai-stack must be updated and running first.** This stack uses the containers of [openwebui-tor-i2p-scraper](https://github.com/thotganesh/openwebui-tor-i2p-scraper) (`tor-proxy`, `i2p-proxy`, `browser-tor`, `browser-i2p`, `browser-clear`, `browser-camoufox`, `browser-http`, `solverr`, `searxng`). `update.sh` refuses to run if any of them is missing.
+
+**If you cloned the repository with `git`:**
+
+    cd ~/hermes-stealth-stack
+    ./update.sh
+
+The script:
+
+1. **Pre-check**: every ai-stack container must be `Up`, otherwise it stops
+2. Refuses if the working tree is dirty
+3. Backs up `.env` and the compose files to `~/stack-backup-*-hermes/`
+4. Runs `git fetch` + `git pull --ff-only`
+5. Rebuilds only the local service (`camofox-router`)
+6. Runs `docker compose up -d --remove-orphans`
+7. Syncs the 7 plugins from `plugins/` into `~/.hermes/plugins/`
+8. Prints the container status
+
+If Hermes plugins changed, restart the `hermes` container:
+
+    docker restart hermes
+
+**Update everything in one command** (both repos, correct order):
+
+    sudo bash ~/update-all.sh
+
+The `update-all.sh` script is not part of this repository: it is a small wrapper that calls `~/ai-stack/update.sh` first and `~/hermes-stealth-stack/update.sh` second.
+
 ## Changelog
 
 ### v1.0.17 - install-all hardening
