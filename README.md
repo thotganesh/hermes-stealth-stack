@@ -4,7 +4,7 @@ Stealth browsing, Tor and I2P for [Hermes Agent](https://github.com/NousResearch
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Current version: v1.0.17** (install-all hardening)
+**Current version: v1.1.1** (4get Google search plugin)
 
 ---
 
@@ -22,9 +22,11 @@ Stealth browsing, Tor and I2P for [Hermes Agent](https://github.com/NousResearch
 10. [Tests and CI](#tests-and-ci)
 11. [Troubleshooting](#troubleshooting)
 12. [Security model and limits](#security-model-and-limits)
-13. [Changelog](#changelog)
-14. [Repository layout](#repository-layout)
-15. [License and credits](#license-and-credits)
+13. [Updating](#updating)
+14. [Google search via 4get](#google-search-via-4get)
+15. [Changelog](#changelog)
+16. [Repository layout](#repository-layout)
+17. [License and credits](#license-and-credits)
 
 ---
 
@@ -703,6 +705,24 @@ From Telegram (or any channel connected to Hermes):
 No other plugin is affected.
 
 ## Changelog
+
+### v1.1.1 - expanded 4get documentation
+
+- README: expanded the "Google search via 4get" section with plugin activation, warm-up dependency, usage examples (CLI + Telegram), function parameters, fallback chain, troubleshooting table, rollback
+- No code changes
+
+### v1.1.0 - fourget_search plugin
+
+- New `fourget_search` plugin that searches the web through the `fourget` container of [ai-stack](https://github.com/thotganesh/openwebui-tor-i2p-scraper)
+- Uses 4get+4play to drive a real Firefox; returns Google/Brave/DuckDuckGo results without an API key or proxies
+- Falls back to `searxng_search` if `fourget` is unreachable
+- `plugin.yaml` declares `provides_tools: [fourget_search]`
+- README: new "Google search via 4get" section, credits updated
+
+### v1.0.18 - add update.sh with ai-stack pre-check
+
+- New `update.sh`: refuses if any ai-stack container is missing; refuses if the working tree is dirty; backs up `.env` and compose files; `git fetch` + `git pull --ff-only`; rebuilds `camofox-router`; `docker compose up -d --remove-orphans`; syncs the 7 plugins into `~/.hermes/plugins/`; prints status
+- README: new "Updating" section
 
 ### v1.0.17 - install-all hardening
 
