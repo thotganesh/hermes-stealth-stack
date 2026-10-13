@@ -12,3 +12,4 @@ torrc.test
 i2p-data/
 *.bak.*
 *.pre-install
+docker-compose.override.yml.bak.*

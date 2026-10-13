@@ -14,6 +14,17 @@ services:
     <<: *camofox
   camofox-i2p:
     <<: *camofox
+    labels:
+      - autoheal=true
+    healthcheck:
+      # Funzionale: tenta davvero un tab su stats.i2p, non solo /health.
+      # camofox-browser puo' rispondere 200 su /health e poi andare in
+      # timeout 30s su tab creation quando i2pd si degrada.
+      test: ["CMD-SHELL", "node -e 'const http=require(\"http\");const body=JSON.stringify({userId:\"hc\",sessionKey:\"hc\",url:\"http://stats.i2p/\"});const req=http.request({host:\"127.0.0.1\",port:9377,path:\"/tabs\",method:\"POST\",headers:{\"Content-Type\":\"application/json\",\"Content-Length\":body.length}},res=>{let d=\"\";res.on(\"data\",c=>d+=c);res.on(\"end\",()=>{try{const j=JSON.parse(d);process.exit(j.tabId?0:1)}catch(e){process.exit(1)}})});req.on(\"error\",()=>process.exit(1));req.setTimeout(45000,()=>{req.destroy();process.exit(1)});req.write(body);req.end()'"]
+      interval: 5m
+      timeout: 50s
+      retries: 1
+      start_period: 90s
   camofox-router:
     environment:
       ROUTER_API_KEY: "${ROUTER_API_KEY:-}"
@@ -29,3 +40,15 @@ services:
       SEARXNG_SECRET: "${SEARXNG_SECRET:-}"
     volumes:
       - ./searxng/settings.yml:/etc/searxng/settings.yml
+
+  autoheal:
+    image: willfarrell/autoheal:1.2.0
+    container_name: autoheal
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+      AUTOHEAL_INTERVAL: "30"
+      AUTOHEAL_START_PERIOD: "120"
+      AUTOHEAL_DEFAULT_STOP_TIMEOUT: "30"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
