@@ -10,3 +10,5 @@ __pycache__/
 *.new
 torrc.test
 i2p-data/
+*.bak.*
+*.pre-install

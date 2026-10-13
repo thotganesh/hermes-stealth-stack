@@ -7,7 +7,7 @@ Snapshot/click/type vanno sempre al tab attivo. Navigare con un prefisso
 esplicito (vps+, tor+, i2p+) su un backend diverso NON naviga mai il tab
 sbagliato: crea (o riattiva) un tab sul backend richiesto e parcheggia l'altro.
 """
-import os, re, json, time, ipaddress, logging
+import os, re, json, time, ipaddress, logging, socket
 from collections import OrderedDict
 from urllib.parse import urlparse
 import httpx
@@ -131,8 +131,35 @@ def _wanted(url):
     return None, url
 
 
+_PRIV_SUFFIXES = (".local", ".internal", ".localhost", ".lan", ".home.arpa", ".docker", ".svc")
+_DNS_TTL = 60
+_DNS_CACHE = {}
+
+
+def _resolve_sync(host):
+    """Ritorna la lista di IP (ipaddress) o None se il nome non risolve."""
+    now = time.time()
+    hit = _DNS_CACHE.get(host)
+    if hit and now - hit[0] < _DNS_TTL:
+        return hit[1]
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except OSError:
+        return None
+    ips = []
+    for _, _, _, _, sockaddr in infos:
+        try:
+            ips.append(ipaddress.ip_address(sockaddr[0].split("%")[0]))
+        except ValueError:
+            continue
+    if len(_DNS_CACHE) > 2000:
+        _DNS_CACHE.clear()
+    _DNS_CACHE[host] = (now, ips)
+    return ips
+
+
 def _check_url(url, backend):
-    """None se ok, altrimenti messaggio di errore."""
+    """None se ok, altrimenti messaggio di errore. Fail-closed."""
     if not url:
         return None
     if not isinstance(url, str):
@@ -146,21 +173,48 @@ def _check_url(url, backend):
         return "schema non consentito"
     if not host:
         return "host mancante"
-    if backend != "vps":
-        return None
-    if host == "localhost" or host.endswith((".local", ".internal", ".localhost")):
+    if u.username or u.password:
+        return "userinfo non consentito"
+
+    # .onion / .i2p: mai via clearnet, mai risolti in DNS locale
+    if host.endswith(".onion"):
+        return None if backend == "tor" else "host .onion richiede il backend tor"
+    if host.endswith(".i2p"):
+        return None if backend == "i2p" else "host .i2p richiede il backend i2p"
+
+    # Nomi interni: mai consentiti, qualunque backend
+    if host == "localhost" or host.endswith(_PRIV_SUFFIXES):
         return "host non consentito"
+
+    # IP letterali: controllati SEMPRE, anche per tor/i2p
     try:
         ip = ipaddress.ip_address(host)
     except ValueError:
         ip = None
     if ip is not None:
+        if ip.version == 6 and getattr(ip, "ipv4_mapped", None):
+            ip = ip.ipv4_mapped
         if not ip.is_global:
             return "IP non pubblico"
-    elif NUMERIC_HOST.fullmatch(host):
+        return None
+
+    if NUMERIC_HOST.fullmatch(host):
         return "host numerico ambiguo"
-    elif "." not in host:
+    if "." not in host:
         return "host senza dominio (rete interna?)"
+
+    # Solo clearnet: risolvi il nome e verifica TUTTI i record A/AAAA.
+    # Per tor/i2p NON risolvere (perderebbe DNS/anonimato).
+    if backend != "vps":
+        return None
+    ips = _resolve_sync(host)
+    if ips is None:
+        return "DNS non risolvibile"
+    for a in ips:
+        if a.version == 6 and getattr(a, "ipv4_mapped", None):
+            a = a.ipv4_mapped
+        if not a.is_global:
+            return "IP non pubblico (DNS)"
     return None
 
 
@@ -434,6 +488,9 @@ async def proxy(path: str, request: Request):
         lk = body_json.get("sessionKey") or body_json.get("listItemId")
         uid = body_json.get("userId")
         wanted, clean = _wanted(url)
+        if wanted and not clean:
+            return _err(400, "url_rejected",
+                        detail=f"prefisso {wanted}+ senza URL: usa {wanted}+https://...")
         backend = wanted or (SESSIONS.get(lk) if lk else None) or DEFAULT_BACKEND
         msg = _check_url(clean, backend)
         if msg:

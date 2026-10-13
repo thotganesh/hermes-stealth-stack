@@ -4,7 +4,7 @@ Stealth browsing, Tor and I2P for [Hermes Agent](https://github.com/NousResearch
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Current version: v1.1.1** (4get Google search plugin)
+**Current version: v1.1.3** (4get Google search plugin)
 
 ---
 
@@ -705,6 +705,21 @@ From Telegram (or any channel connected to Hermes):
 No other plugin is affected.
 
 ## Changelog
+
+### v1.1.3 — router hardening, installer backups (2026-10-13)
+
+**Router**
+- SSRF: risoluzione hostname per `vps`, rifiuto di IP privati/loopback/link-local
+  (anche per tor/i2p, sui literal), userinfo non consentito.
+- Fail-closed: `tor+`/`i2p+` senza URL → `400 url_rejected`; `.onion`/`.i2p` solo
+  sul backend corrispondente.
+
+**Installer**
+- `install.sh` e `install-all.sh`: flag `--dry-run` e backup automatico
+  `<file>.bak.installer` al primo tocco di ogni `.env`.
+
+**Documentazione**
+- Sottosezione "Router Hermes" in Security hardening.
 
 ### v1.1.1 - expanded 4get documentation
 

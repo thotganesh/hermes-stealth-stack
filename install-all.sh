@@ -14,6 +14,13 @@
 #   SKIP_HERMES=1  skip part 2
 set -euo pipefail
 
+DRY_RUN=0
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run) DRY_RUN=1 ;;
+  esac
+done
+
 cd "$(dirname "${BASH_SOURCE[0]}")"
 STACK_DIR="$(pwd)"
 
@@ -37,8 +44,15 @@ env_get() { # file key -> value (empty if missing)
   printf '%s' "$v"
 }
 
-set_env_var() { # file key value, same logic as install.sh
+set_env_var() { # file key value, backup + --dry-run
   local file="$1" key="$2" val="$3" tmp
+  if [ "${DRY_RUN:-0}" = "1" ]; then
+    echo "[dry-run] $file: $key=$val"
+    return 0
+  fi
+  if [ -f "$file" ] && [ ! -f "${file}.bak.installer" ]; then
+    cp -a "$file" "${file}.bak.installer" 2>/dev/null || true
+  fi
   tmp="$(mktemp)"
   if grep -q "^${key}=" "$file"; then
     sed "s|^${key}=.*|${key}=${val}|" "$file" > "$tmp"

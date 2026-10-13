@@ -2,6 +2,18 @@
 # Hermes Stealth Stack - installer
 set -euo pipefail
 
+DRY_RUN=0
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run) DRY_RUN=1 ;;
+    -h|--help)
+      echo "Usage: $0 [--dry-run]"
+      echo "  --dry-run   mostra le modifiche a .env senza scrivere"
+      exit 0
+      ;;
+  esac
+done
+
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
@@ -27,9 +39,17 @@ wait_healthy() {
   return 1
 }
 
-# KEY=VAL in un .env senza sed -i, senza .bak, preservando permessi
+# KEY=VAL in un .env senza sed -i, preservando permessi.
+# Con --dry-run non scrive; al primo tocco di ogni file fa un backup.
 set_env_var() {
   local file="$1" key="$2" val="$3" tmp
+  if [ "${DRY_RUN:-0}" = "1" ]; then
+    echo "[dry-run] $file: $key=$val"
+    return 0
+  fi
+  if [ -f "$file" ] && [ ! -f "${file}.bak.installer" ]; then
+    cp -a "$file" "${file}.bak.installer" 2>/dev/null || true
+  fi
   tmp="$(mktemp)"
   if grep -q "^${key}=" "$file"; then
     sed "s|^${key}=.*|${key}=${val}|" "$file" > "$tmp"
