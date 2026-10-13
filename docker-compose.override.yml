@@ -23,13 +23,15 @@ services:
     labels:
       - autoheal=true
     healthcheck:
-      # Funzionale: tenta davvero un tab su stats.i2p, non solo /health.
-      # camofox-browser puo' rispondere 200 su /health e poi andare in
-      # timeout 30s su tab creation quando i2pd si degrada.
-      test: ["CMD-SHELL", "node -e 'const http=require(\"http\");const body=JSON.stringify({userId:\"hc\",sessionKey:\"hc\",url:\"http://stats.i2p/\"});const req=http.request({host:\"127.0.0.1\",port:9377,path:\"/tabs\",method:\"POST\",headers:{\"Content-Type\":\"application/json\",\"Content-Length\":body.length}},res=>{let d=\"\";res.on(\"data\",c=>d+=c);res.on(\"end\",()=>{try{const j=JSON.parse(d);process.exit(j.tabId?0:1)}catch(e){process.exit(1)}})});req.on(\"error\",()=>process.exit(1));req.setTimeout(45000,()=>{req.destroy();process.exit(1)});req.write(body);req.end()'"]
+      # Verifica che il container sia vivo (browser avviato, HTTP risponde,
+      # tab si crea). NON testa la raggiungibilita' di I2P: dipende da
+      # tunnel esterni lenti e farebbe fallire il check anche quando
+      # camofox-i2p e' sano. Il target e' il proxy i2pd locale, che risponde
+      # subito senza costruire tunnel.
+      test: ["CMD-SHELL", "node -e 'const http=require(\"http\");const body=JSON.stringify({userId:\"hc\",sessionKey:\"hc\",url:\"http://i2p-proxy:4444/\"});const req=http.request({host:\"127.0.0.1\",port:9377,path:\"/tabs\",method:\"POST\",headers:{\"Content-Type\":\"application/json\",\"Content-Length\":body.length}},res=>{let d=\"\";res.on(\"data\",c=>d+=c);res.on(\"end\",()=>{try{const j=JSON.parse(d);process.exit(j.tabId?0:1)}catch(e){process.exit(1)}})});req.on(\"error\",()=>process.exit(1));req.setTimeout(20000,()=>{req.destroy();process.exit(1)});req.write(body);req.end()'"]
       interval: 5m
-      timeout: 50s
-      retries: 1
+      timeout: 25s
+      retries: 2
       start_period: 90s
   camofox-router:
     environment:
