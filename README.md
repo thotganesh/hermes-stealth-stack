@@ -635,13 +635,72 @@ The `update-all.sh` script is not part of this repository: it is a small wrapper
 
 ## 🔍 Google search via 4get
 
-The `fourget_search` plugin searches the web through the `fourget` container of [ai-stack](https://github.com/thotganesh/openwebui-tor-i2p-scraper), which drives a real Firefox (via 4play) to obtain Google / Brave / DuckDuckGo results without an API key and without CAPTCHAs — once the Firefox profile is "warm".
+The `fourget_search` plugin searches the web through the `fourget` container of [ai-stack](https://github.com/thotganesh/openwebui-tor-i2p-scraper), which drives a real Firefox (via 4play) to obtain Google / Brave / DuckDuckGo results without an API key and without CAPTCHAs -- once the Firefox profile is "warm".
 
-**Requirements:** `ai-stack` must be running with `fourget` available on the shared network. The plugin falls back to `searxng_search` if `fourget` is unreachable.
+**Requirements:** `ai-stack` must be running with `fourget` on the shared network. The plugin falls back to `searxng_search` if `fourget` is unreachable, so even without ai-stack the plugin still returns SearXNG results.
 
-**Warm-up:** see [docs/WARMUP-4PLAY.md in ai-stack](https://github.com/thotganesh/openwebui-tor-i2p-scraper/blob/main/docs/WARMUP-4PLAY.md).
+### Activation
 
-**Usage:** the plugin is enabled by default. Ask the model to search the web; it uses `fourget_search` first, `searxng_search` as fallback.
+The plugin ships in `plugins/fourget_search/`. `install.sh` copies it into `~/.hermes/plugins/` and enables it. If you installed manually:
+
+    docker cp ~/hermes-stealth-stack/plugins/fourget_search hermes:/opt/data/plugins/
+    docker exec hermes hermes plugins enable fourget_search
+    docker restart hermes
+
+Verify:
+
+    docker exec hermes hermes plugins list 2>&1 | grep fourget
+    docker exec hermes hermes plugins doctor fourget_search 2>&1
+
+Expected: `Status: enabled`, and doctor reports `1 tool(s)` without warnings.
+
+### Warm-up
+
+Google needs a warm Firefox profile. See the [ai-stack warm-up guide](https://github.com/thotganesh/openwebui-tor-i2p-scraper/blob/main/docs/WARMUP-4PLAY.md) -- 5 minutes, once.
+
+Without the warm-up, every query returns a CAPTCHA. The plugin still works (falls back to SearXNG), but Google-specific results are blocked.
+
+### Usage
+
+Once enabled, ask the model to search the web in plain language. The plugin is registered as `fourget_search` and the model is expected to prefer it over `searxng_search` (see the ai-stack README for the SOUL.md update).
+
+From Hermes CLI:
+
+    docker exec hermes hermes chat
+    > cerca su internet "docker networking best practices"
+
+From Telegram (or any channel connected to Hermes):
+
+    cerca su internet le ultime novita su Docker
+
+### Parameters
+
+    fourget_search(query: str, engine: str = "auto", limit: int = 8) -> str
+
+- `query`: required, the search string
+- `engine`: one of `auto` (default), `google`, `brave`, `duckduckgo`, `startpage`. `auto` merges multiple engines via 4get
+- `limit`: max results returned (default 8)
+
+### Fallback chain
+
+`fourget_search` -> `fourget` API -> on failure -> `searxng_search` (SearXNG API) -> on failure -> error string. The caller always gets a text response (results or error), never a silent failure.
+
+### Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Plugin returns "Nessun risultato" | `fourget` unreachable, `searxng` unreachable | Check containers: `docker ps --filter name=fourget --filter name=searxng` |
+| Plugin not visible in `hermes tools` | `plugin.yaml` missing `provides_tools` | Verify with `hermes plugins doctor fourget_search` -- the manifest must declare `provides_tools: [fourget_search]` |
+| Model ignores the plugin and uses `search_files` | SOUL.md not updated | Add the fourget_search line to `SOUL.md` (see ai-stack README) |
+| Every Google query returns a CAPTCHA | Firefox profile cold | Re-run the warm-up |
+
+### Rollback
+
+    docker exec hermes hermes plugins disable fourget_search
+    docker exec hermes rm -rf /opt/data/plugins/fourget_search
+    docker restart hermes
+
+No other plugin is affected.
 
 ## Changelog
 
