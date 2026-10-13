@@ -4,7 +4,7 @@ Stealth browsing, Tor and I2P for [Hermes Agent](https://github.com/NousResearch
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Current version: v1.1.3** (4get Google search plugin)
+**Current version: v1.1.4** (4get Google search plugin)
 
 ---
 
@@ -595,6 +595,21 @@ All containers must be on the same Docker network: `docker network inspect ai-ne
 
 ### SSRF risk
 `camofox-tor` and `camofox-i2p` run with `CAMOFOX_ALLOW_PRIVATE_NETWORK=true` so the browser can reach the proxy containers. A page or an agent-driven navigation can therefore reach other services on the same Docker network (Hermes, Open WebUI, ...). Mitigations: keep the Camofox stack on a network shared only with the proxies, do not let untrusted input drive `browser_navigate`, and use firewall rules to limit these containers to the proxy ports.
+
+### I2P is best-effort
+
+The `i2p` backend of `camofox-router` uses a `camofox-i2p` container with a
+**30 second** internal timeout on tab creation. The I2P network can take
+40-90 seconds for the first hit to an eepsite (slow tunnels, expired leases,
+reseed). When I2P is congested, `camofox-i2p` returns
+`{"error":"Internal server error","retryable":false}` after 30s.
+
+**For reliable I2P use the `browser_i2p` plugin** (120s timeout) instead of
+`browser_navigate` with `.i2p`. The router still routes `.i2p` to
+`camofox-i2p` transparently, but the plugin is the reliable path.
+
+If `camofox-i2p` stays stuck (even after `docker restart`), the fix is
+`docker restart i2p-proxy` followed by 60s of warm-up.
 
 ### Anonymity disclaimer
 Camoufox with Tor is **not** equivalent to Tor Browser. Camoufox randomizes the fingerprint while Tor Browser makes all users look the same, so the threat model is different and it does not defend against advanced correlation. A new tab with no prefix exits from the **host IP**. Traffic analysis, timing attacks and malicious exit nodes are out of scope. NEWNYM is global for the shared `tor-proxy` and can change the exit of an ongoing `camofox-tor` session. Page content returned to the agent is untrusted input (prompt injection). Use this stack as a convenience layer for scripted browsing, not as a replacement for Tor Browser.
