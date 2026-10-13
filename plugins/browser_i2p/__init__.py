@@ -1,5 +1,35 @@
 import requests
 
+
+# ===== URL validation (defense in depth, .i2p only, no DNS resolution) =====
+import ipaddress as _ipa
+from urllib.parse import urlparse as _urlparse
+
+
+def validate_url(url):
+    """None se OK, altrimenti stringa con il motivo.
+    browser_i2p legge solo .i2p; nessuna risoluzione DNS."""
+    if not isinstance(url, str) or not url:
+        return "URL mancante o non valido"
+    try:
+        u = _urlparse(url)
+        host = (u.hostname or "").lower().rstrip(".")
+    except ValueError:
+        return "URL non valido"
+    if u.scheme not in ("http", "https"):
+        return "schema non consentito"
+    if not host:
+        return "host mancante"
+    if not host.endswith(".i2p"):
+        return "browser_i2p legge solo host .i2p"
+    try:
+        ip = _ipa.ip_address(host)
+    except ValueError:
+        return None  # hostname .i2p: lasciato a I2P
+    if not ip.is_global:
+        return f"IP non pubblico ({ip})"
+    return None
+
 def register(ctx):
     schema = {
         "name": "browser_i2p",
@@ -19,6 +49,9 @@ def register(ctx):
         if not url:
             return "Errore: parametro url mancante"
         try:
+            why = validate_url(url)
+            if why:
+                return f"Errore: URL rifiutato ({why})"
             resp = requests.post("http://browser-i2p:8083/browse",
                                  json={"url": url, "extract_text": True, "block_media": True, "js_enabled": False},
                                  timeout=160)
