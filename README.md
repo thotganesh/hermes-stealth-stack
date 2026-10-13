@@ -633,6 +633,16 @@ If Hermes plugins changed, restart the `hermes` container:
 
 The `update-all.sh` script is not part of this repository: it is a small wrapper that calls `~/ai-stack/update.sh` first and `~/hermes-stealth-stack/update.sh` second.
 
+## 🔍 Google search via 4get
+
+The `fourget_search` plugin searches the web through the `fourget` container of [ai-stack](https://github.com/thotganesh/openwebui-tor-i2p-scraper), which drives a real Firefox (via 4play) to obtain Google / Brave / DuckDuckGo results without an API key and without CAPTCHAs — once the Firefox profile is "warm".
+
+**Requirements:** `ai-stack` must be running with `fourget` available on the shared network. The plugin falls back to `searxng_search` if `fourget` is unreachable.
+
+**Warm-up:** see [docs/WARMUP-4PLAY.md in ai-stack](https://github.com/thotganesh/openwebui-tor-i2p-scraper/blob/main/docs/WARMUP-4PLAY.md).
+
+**Usage:** the plugin is enabled by default. Ask the model to search the web; it uses `fourget_search` first, `searxng_search` as fallback.
+
 ## Changelog
 
 ### v1.0.17 - install-all hardening
@@ -719,6 +729,8 @@ MIT - see [LICENSE](LICENSE).
 - [Hermes Agent](https://github.com/NousResearch/hermes-agent) by Nous Research
 - `ghcr.io/unseensnick/solverr`, a community FlareSolverr fork
 - [openwebui-tor-i2p-scraper](https://github.com/thotganesh/openwebui-tor-i2p-scraper): Tor/Snowflake and I2P proxies and the reader containers this stack builds on
+- [4get](https://git.lolcat.ca/lolcat/4get) by [lolcat](https://lolcat.ca) — multi-engine search frontend used by the `fourget_search` plugin (AGPL-3.0)
+- [4play](https://git.lolcat.ca/lolcat/4get/src/branch/master/extra/4play) by lolcat — browser bridge for 4get (AGPL-3.0)
 
 
 ---
