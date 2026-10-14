@@ -7,6 +7,7 @@ Snapshot/click/type vanno sempre al tab attivo. Navigare con un prefisso
 esplicito (vps+, tor+, i2p+) su un backend diverso NON naviga mai il tab
 sbagliato: crea (o riattiva) un tab sul backend richiesto e parcheggia l'altro.
 """
+import asyncio
 import os, re, json, time, ipaddress, logging, socket
 from collections import OrderedDict
 from urllib.parse import urlparse
@@ -392,7 +393,7 @@ async def _switch(c, pub, ts, wanted, clean, body_json, headers):
         log.info("switch pub=%s %s->%s (riattivato)", pub, prev, wanted)
         return _jresp({"ok": True, "switched": True, "tabId": pub, "backend": wanted,
                        "switched_from": prev, "url": ""}, wanted)
-    msg = _check_url(clean, wanted)
+    msg = await asyncio.to_thread(_check_url, clean, wanted)
     if msg:
         return _err(400, "url_rejected", detail=msg)
     if real:                                         # tab parcheggiato: navigalo
@@ -492,7 +493,7 @@ async def proxy(path: str, request: Request):
             return _err(400, "url_rejected",
                         detail=f"prefisso {wanted}+ senza URL: usa {wanted}+https://...")
         backend = wanted or (SESSIONS.get(lk) if lk else None) or DEFAULT_BACKEND
-        msg = _check_url(clean, backend)
+        msg = await asyncio.to_thread(_check_url, clean, backend)
         if msg:
             return _err(400, "url_rejected", detail=msg)
         if url:
@@ -547,7 +548,7 @@ async def proxy(path: str, request: Request):
                         return await _switch(c, pub, ts, wanted, clean, body_json, headers)
                 except httpx.HTTPError as e:
                     return _err(502, "backend_unreachable", backend=wanted, detail=str(e))
-            msg = _check_url(clean, backend)
+            msg = await asyncio.to_thread(_check_url, clean, backend)
             if msg:
                 return _err(400, "url_rejected", detail=msg)
             body_json["url"] = clean

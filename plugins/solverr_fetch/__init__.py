@@ -1,4 +1,4 @@
-import ipaddress, json, os, re
+import ipaddress, json, os, re, socket
 from urllib.parse import urlparse
 import requests
 
@@ -24,6 +24,19 @@ def validate_url(url):
         raise ValueError("host numerico ambiguo")
     elif "." not in host:
         raise ValueError("host senza dominio (rete interna?)")
+    else:
+        if host.endswith((".lan", ".home.arpa", ".docker", ".svc", ".onion", ".i2p")):
+            raise ValueError("host non consentito")
+        try:
+            infos = socket.getaddrinfo(host, None)
+        except OSError:
+            raise ValueError("DNS non risolvibile")
+        for info in infos:
+            a = ipaddress.ip_address(info[4][0].split("%")[0])
+            if a.version == 6 and a.ipv4_mapped:
+                a = a.ipv4_mapped
+            if not a.is_global:
+                raise ValueError("IP non pubblico (DNS)")
 
 
 def html_to_text(html):
