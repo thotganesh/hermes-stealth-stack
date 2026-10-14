@@ -106,7 +106,7 @@ PLUGIN_DIR="$HERMES_HOME/plugins"
 # All 7 plugins are installed regardless of INSTALL_FULL. The extra two
 # (searxng_search, solverr_fetch) talk to containers that normally live in
 # ai-stack; if they are missing, the plugin returns an error string.
-PLUGINS=(browser_http browser_clear browser_camoufox browser_tor browser_i2p searxng_search solverr_fetch)
+PLUGINS=(browser_http browser_clear browser_camoufox browser_tor browser_i2p searxng_search solverr_fetch fourget_search)
 
 log "Installing ${#PLUGINS[@]} plugins into $PLUGIN_DIR..."
 for p in "${PLUGINS[@]}"; do
