@@ -4,7 +4,7 @@ Stealth browsing, Tor and I2P for [Hermes Agent](https://github.com/NousResearch
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Current version: v1.1.10** (4get Google search plugin)
+![Version](https://img.shields.io/github/v/tag/thotganesh/hermes-stealth-stack?label=version&sort=semver&color=blue)
 
 ---
 
