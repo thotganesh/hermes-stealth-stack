@@ -48,7 +48,7 @@ Verify CAMOFOX_URL points to the router and the Camofox container is healthy.
 Tor/I2P proxies may be slow to start. Wait 30-60 seconds and retry.
 Check logs:
 
-    docker logs camofox-tor --tail 20
+    docker logs browser-tor-interactive --tail 20
     docker logs camofox-i2p --tail 20
 
 ### Router not reachable from Hermes

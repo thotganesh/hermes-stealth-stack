@@ -11,9 +11,9 @@ The router sits between Hermes and the three Camofox backends:
 
 ## Routing logic
 
-- URL starts with `tor+` -> strip prefix, send to camofox-tor
+- URL starts with `tor+` -> strip prefix, send to browser-tor-interactive
 - URL starts with `i2p+` -> strip prefix, send to camofox-i2p
-- URL contains `.onion` -> send to camofox-tor
+- URL contains `.onion` -> send to browser-tor-interactive
 - URL contains `.i2p` -> send to camofox-i2p
 - Otherwise -> send to camofox (host IP)
 
