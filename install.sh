@@ -83,7 +83,7 @@ for c in tor-proxy i2p-proxy; do
   if container_running "$c"; then
     log "Container $c detected"
   else
-    warn "Container $c not found (needed by camofox-tor / camofox-i2p)"
+    warn "Container $c not found (needed by camofox-i2p)"
   fi
 done
 
@@ -123,7 +123,7 @@ container_exists() {
   [ -n "$(docker ps -aq --filter "name=^/${1}$")" ]
 }
 
-SERVICES=(camofox camofox-tor camofox-i2p camofox-router)
+SERVICES=(camofox camofox-i2p camofox-router)
 CREATE_SEARXNG=false
 if [ "$INSTALL_FULL" = "true" ]; then
   for s in searxng solverr; do

@@ -10,14 +10,6 @@ x-camofox: &camofox
 services:
   camofox:
     <<: *camofox
-  camofox-tor:
-    <<: *camofox
-    environment:
-      # Circuiti Tor dedicati: separati da browser-tor (ai-stack).
-      # Vedi ai-stack/docker-compose.yml -> tor-proxy-camofox.
-      PROXY_HOST: "tor-proxy-camofox"
-      PROXY_PORT: "9150"
-      PROXY_PROTOCOL: "socks5"
   camofox-i2p:
     <<: *camofox
     labels:

@@ -19,7 +19,7 @@ log = logging.getLogger("uvicorn.error")
 
 BACKENDS = {
     "vps": os.environ.get("CAMOFOX_VPS_URL", "http://camofox:9377"),
-    "tor": os.environ.get("CAMOFOX_TOR_URL", "http://camofox-tor:9377"),
+    "tor": os.environ.get("CAMOFOX_TOR_URL", "http://browser-tor-interactive:9377"),
     "i2p": os.environ.get("CAMOFOX_I2P_URL", "http://camofox-i2p:9377"),
 }
 STATE_TTL = int(os.environ.get("ROUTER_STATE_TTL", "3600"))
