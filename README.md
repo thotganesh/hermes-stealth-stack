@@ -41,9 +41,9 @@ The stack gives Hermes two complementary ways to browse.
 | URL prefix | Engine | Exit |
 |------------|--------|------|
 | `vps+` or none (new tab) | `camofox` | Host IP |
-| `tor+` | `camofox-tor` | Tor exit node |
+| `tor+` | `camofox-tor` (optional: `browser-tor-interactive`) | Tor exit node |
 | `i2p+` | `camofox-i2p` | I2P network |
-| `*.onion` | `camofox-tor` (automatic) | Tor |
+| `*.onion` | `camofox-tor` (automatic; optional: `browser-tor-interactive`) | Tor |
 | `*.i2p` | `camofox-i2p` (automatic) | I2P |
 
 ### Which tool for which task
@@ -81,13 +81,13 @@ Five scenarios this stack is designed for. Each one lists the tools, why the sta
 
 ### 2. Anonymous research over Tor
 
-**Scenario:** you need to open a page and read its contents through the Tor network, possibly refreshing the circuit between requests.
+**Scenario:** you need to open a page and read its contents through the Tor network, possibly refreshing the circuit between requests (default engine).
 
 **Tools:** `browser_tor` (reader) for one-shot anonymous reads; `browser_navigate` with `tor+https://...` for interactive sessions; `camofox-tor` under the hood.
 
-**Why this stack:** `browser_tor` sends a `NEWNYM` to the shared `tor-proxy` before every request and returns `circuit_renewed` in the response. `camofox-tor` is a full stealth browser with `block_webrtc` and remote DNS, so it can be used to log in (not just read).
+**Why this stack:** by default `browser_tor` sends a `NEWNYM` to the shared `tor-proxy` before every request and returns `circuit_renewed` in the response. `camofox-tor` is a full stealth browser with `block_webrtc` and remote DNS, so it can be used to log in (not just read). For the official Tor Browser (uniform fingerprint, JavaScript off) use the optional engines from `ai-stack` v3.7: `browser-tor-real` for `browser_tor` (`BROWSER_TOR_URL=http://browser-tor-real:8081` in Hermes' environment) and `browser-tor-interactive` for `tor+` (`CAMOFOX_TOR_URL=http://browser-tor-interactive:9377` in this repo's `.env`). `browser-tor-interactive` is behind the `hermes` profile in `ai-stack` (`COMPOSE_PROFILES=hermes`).
 
-**Watch out:** `NEWNYM` is global for `tor-proxy`. If you have an ongoing `camofox-tor` session, a `browser_tor` call can change its exit node mid-session and invalidate site sessions. Use one Tor path per task. Snowflake needs 10-30 s after a reboot to reconnect.
+**Watch out:** with the default engines `NEWNYM` is global for `tor-proxy`: if you have an ongoing `camofox-tor` session, a `browser_tor` call can change its exit node mid-session and invalidate site sessions. Use one Tor path per task. The official Tor Browser engines send no `NEWNYM`, and with JavaScript off, pages that render with JS (many sign-up forms) look empty in the snapshot. Snowflake needs 10-30 s after a reboot to reconnect.
 
 ### 3. `.onion` and `.i2p` sources
 
@@ -382,7 +382,7 @@ All plugins live in `plugins/<name>/` (`plugin.yaml` + `__init__.py`), are insta
 - **browser_http**: direct fetch with Chrome impersonation (curl_cffi). Best for plain HTML and APIs.
 - **browser_clear**: stealth Chromium, for modern SPAs and pages with light anti-bot protection.
 - **browser_camoufox**: stealth Firefox with `humanize` enabled and a Windows profile, for sites that block Chromium.
-- **browser_tor**: anonymous reads; NEWNYM before every request. Responses include `circuit_renewed`; set `TOR_REQUIRE_NEWNYM=1` on the `browser-tor` container to fail instead of reusing a circuit. Rejected URLs return a message with the reason.
+- **browser_tor**: anonymous reads. With the default `browser-tor` container, NEWNYM before every request; responses include `circuit_renewed`, and `TOR_REQUIRE_NEWNYM=1` on that container fails instead of reusing a circuit. With `browser-tor-real` (set `BROWSER_TOR_URL`), the official Tor Browser with JavaScript off and no NEWNYM per request. Rejected URLs return a message with the reason.
 - **browser_i2p**: reads through the I2P HTTP proxy, for `.i2p` sites.
 - **searxng_search**: self-hosted metasearch (JSON API); returns title, URL and a 200-character snippet per result.
 - **solverr_fetch**: solves Cloudflare/Turnstile challenges through FlareSolverr (community fork `ghcr.io/unseensnick/solverr`, override with `SOLVERR_IMAGE`).
@@ -467,6 +467,8 @@ Copy `.env.example` to `.env`.
 | `SEARXNG_SECRET` | generated | SearXNG secret |
 | `HERMES_RESTART_UNIT` | unset | systemd unit to restart after install |
 | `TOR_CONTROL_PASSWORD`, `TOR_REQUIRE_NEWNYM` | empty, `0` | `browser-tor` container |
+| `BROWSER_TOR_URL` | `http://browser-tor:8081` | Backend of the `browser_tor` plugin, read from Hermes' environment. `http://browser-tor-real:8081` selects the official Tor Browser |
+| `CAMOFOX_TOR_URL` | `http://camofox-tor:9377` | Router backend for `tor+`. `http://browser-tor-interactive:9377` selects the official Tor Browser |
 | `ROUTER_API_KEY` | empty (off) | Optional Bearer authentication |
 
 ### Router variables
@@ -579,7 +581,7 @@ Hermes is in Browser Use mode. The stack bypasses it through `CAMOFOX_URL`: veri
 All containers must be on the same Docker network: `docker network inspect ai-net`.
 
 ### The Tor exit did not change
-`camofox-tor` and `tor-proxy` are separate containers; restarting `camofox-tor` does not renew the circuit. NEWNYM goes to the shared `tor-proxy` and affects every user of it.
+`camofox-tor` and `tor-proxy` are separate containers; restarting `camofox-tor` does not renew the circuit. NEWNYM goes to the shared `tor-proxy` and affects every user of it. With the official Tor Browser engines no NEWNYM is sent: the circuit is managed by the Tor daemon, so restarting the browser container does not change the exit either.
 
 ---
 
@@ -612,7 +614,7 @@ If `camofox-i2p` stays stuck (even after `docker restart`), the fix is
 `docker restart i2p-proxy` followed by 60s of warm-up.
 
 ### Anonymity disclaimer
-Camoufox with Tor is **not** equivalent to Tor Browser. Camoufox randomizes the fingerprint while Tor Browser makes all users look the same, so the threat model is different and it does not defend against advanced correlation. A new tab with no prefix exits from the **host IP**. Traffic analysis, timing attacks and malicious exit nodes are out of scope. NEWNYM is global for the shared `tor-proxy` and can change the exit of an ongoing `camofox-tor` session. Page content returned to the agent is untrusted input (prompt injection). Use this stack as a convenience layer for scripted browsing, not as a replacement for Tor Browser.
+The default Tor path (`browser_tor` on `browser-tor`, `tor+` on `camofox-tor`) is **not** equivalent to Tor Browser. Camoufox randomizes the fingerprint while Tor Browser makes all users look the same, so the threat model is different and it does not defend against advanced correlation. The optional `browser-tor-real` and `browser-tor-interactive` engines (`ai-stack` v3.7) run the official Tor Browser with JavaScript off, which gives the uniform fingerprint, but they do not defend against advanced correlation either. A new tab with no prefix exits from the **host IP**. Traffic analysis, timing attacks and malicious exit nodes are out of scope. With the default engines NEWNYM is global for the shared `tor-proxy` and can change the exit of an ongoing `camofox-tor` session. Page content returned to the agent is untrusted input (prompt injection). Use this stack as a convenience layer for scripted browsing, not as a replacement for Tor Browser.
 
 ### Responsible use
 Respect the terms of service of the sites you automate and the laws that apply to you. This project does not help bypass the anti-abuse systems of third-party services.
@@ -849,5 +851,5 @@ MIT - see [LICENSE](LICENSE).
 - `browser_http`, `browser_clear` and `browser_camoufox` talk to the `ai-stack` containers, which reject non-public URLs (HTTP 400, shown as "URL rifiutato (...)"). `solverr_fetch` and the Camofox router apply the same rules (trailing dots are stripped before checking).
 - `camofox-tor` and `camofox-i2p` must be attached to `proxy-net`, the isolated network where `tor-proxy` / `i2p-proxy` live. `install.sh` creates it if missing. WebRTC-off and remote-DNS preferences are applied at image build time by `camofox/Dockerfile`; `camofox/prefs/user.js` is kept for reference and is not read by camofox-browser.
 - `INSTALL_FULL=false` is the default: `searxng` and `solverr` are expected from `ai-stack` and are never recreated if they exist. Do not run `docker compose --profile full up` by hand while ai-stack owns them (same `container_name`).
-- `browser_tor` allows up to ~130 s per call (NEWNYM wait + 90 s navigation over Snowflake).
+- `browser_tor` allows up to ~130 s per call (the plugin's request timeout: NEWNYM wait + 90 s navigation over Snowflake with the default engine).
 - Network-level egress rules for the clear-exit containers live in `ai-stack/hardening/`.

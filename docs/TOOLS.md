@@ -28,10 +28,10 @@ Firefox stealth with humanize enabled.
 
 ### browser_tor
 
-Anonymous reads via Tor. NEWNYM before every request.
+Anonymous reads via Tor. Default engine (`browser-tor`): NEWNYM before every request. With `BROWSER_TOR_URL` pointing to `browser-tor-real` (`ai-stack` v3.7): official Tor Browser, no NEWNYM.
 
-- Speed: 3-10 s
-- JavaScript: yes
+- Speed: 3-10 s (default engine)
+- JavaScript: yes (default engine), no with `browser-tor-real`
 - Use case: anonymous reading, .onion fallback
 
 ### browser_i2p
